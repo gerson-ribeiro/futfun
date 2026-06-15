@@ -1,0 +1,15 @@
+# Ignore Flutter frontend — not needed for backend deploy
+futfun-frontend/
+
+# Ignore backend node_modules and build artifacts
+futfun-backend/node_modules/
+futfun-backend/.next/
+futfun-backend/tsconfig.tsbuildinfo
+
+# Ignore env files with secrets
+futfun-backend/.env
+futfun-backend/.env.*
+
+# Misc
+.git/
+*.log

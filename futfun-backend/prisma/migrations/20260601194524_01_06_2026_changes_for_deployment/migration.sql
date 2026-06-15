@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "users" ALTER COLUMN "provider" DROP DEFAULT,
+ALTER COLUMN "providerId" DROP DEFAULT;

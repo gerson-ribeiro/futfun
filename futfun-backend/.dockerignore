@@ -1,0 +1,15 @@
+node_modules
+.next
+.env
+.env.*
+*.local
+npm-debug.log*
+.git
+.gitignore
+docker-compose.yml
+docs/
+README.md
+dump.rdb
+jest.config.ts
+eslint.config.mjs
+tsconfig.tsbuildinfo

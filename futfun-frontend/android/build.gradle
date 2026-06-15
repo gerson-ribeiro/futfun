@@ -1,0 +1,30 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// Shim so Flutter plugins (e.g. app_links) can resolve flutter.compileSdkVersion
+// The real FlutterExtension is registered on :app by the Flutter Gradle plugin.
+// Sub-projects that reference flutter.compileSdkVersion fall back to this object.
+if (!rootProject.hasProperty("flutter")) {
+    rootProject.ext.flutter = [
+        compileSdkVersion: 34,
+        minSdkVersion: 21,
+        targetSdkVersion: 34,
+        ndkVersion: "27.0.12077973",
+    ]
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

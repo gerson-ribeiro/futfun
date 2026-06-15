@@ -1,0 +1,22 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: futfun-postgres
+    environment:
+      POSTGRES_USER: futfun
+      POSTGRES_PASSWORD: futfun_dev_password
+      POSTGRES_DB: futfun
+    ports:
+      - '5432:5432'
+    volumes:
+      - futfun_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U futfun']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  futfun_postgres_data:

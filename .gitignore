@@ -1,0 +1,16 @@
+# Claude Code internals
+.claude/
+.superpowers/
+.playwright-mcp/
+.project/
+
+# Redis dump
+dump.rdb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# GCP credentials (never commit)
+*-key.json
+service-account*.json
