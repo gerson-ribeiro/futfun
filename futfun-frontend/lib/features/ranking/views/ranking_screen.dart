@@ -261,9 +261,13 @@ class _RankingRow extends StatelessWidget {
                       fontWeight: isTop3
                           ? FontWeight.w700
                           : (isCurrentUser ? FontWeight.w700 : FontWeight.w500),
+                      // Top 3 cards have a hardcoded light gradient background,
+                      // so always use dark text there regardless of theme.
                       color: isCurrentUser
                           ? AppColors.success
-                          : Theme.of(context).colorScheme.onSurface,
+                          : isTop3
+                              ? Colors.black87
+                              : Theme.of(context).colorScheme.onSurface,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
