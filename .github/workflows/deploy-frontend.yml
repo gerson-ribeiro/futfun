@@ -25,7 +25,7 @@ jobs:
         working-directory: futfun-frontend
 
       - name: Build Flutter web
-        run: flutter build web --no-tree-shake-icons
+        run: flutter build web --no-tree-shake-icons --pwa-strategy=none
         working-directory: futfun-frontend
 
       - name: Deploy to Firebase Hosting
