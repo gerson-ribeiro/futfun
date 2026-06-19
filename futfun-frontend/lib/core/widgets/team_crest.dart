@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -21,6 +23,15 @@ class TeamCrest extends StatelessWidget {
     defaultValue: 'https://futfun-backend-dlpljkbcta-rj.a.run.app',
   );
 
+  // Bare Dio for image fetching — no auth interceptors, no base URL.
+  static final _imageDio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ));
+
+  // Simple in-memory cache to avoid re-fetching the same image.
+  static final _imageCache = <String, Uint8List>{};
+
   const TeamCrest({super.key, this.url, this.size = 28});
 
   /// On web, wraps the URL through the backend CORS proxy.
@@ -29,14 +40,20 @@ class TeamCrest extends StatelessWidget {
     return '$_backendUrl/api/image-proxy?url=${Uri.encodeComponent(original)}';
   }
 
+  bool _isSvg(String url) {
+    // Strip query params before checking extension.
+    final path = url.toLowerCase().split('?').first;
+    return path.endsWith('.svg');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (url == null || url!.isEmpty) return _placeholder();
 
     final effective = _effectiveUrl(url!);
 
-    // SVG files: use flutter_svg on all platforms
-    if (url!.toLowerCase().endsWith('.svg')) {
+    // SVG files: use flutter_svg on all platforms.
+    if (_isSvg(url!)) {
       return SvgPicture.network(
         effective,
         width: size,
@@ -45,7 +62,22 @@ class TeamCrest extends StatelessWidget {
       );
     }
 
-    // Raster images (PNG, JPG, etc.)
+    // On web, Image.network() may use an opaque (no-cors) fetch mode for
+    // cross-origin URLs, causing the image to load (HTTP 200) but never
+    // render because the browser restricts byte access. Fetching via Dio
+    // makes a standard CORS GET request that correctly receives the proxy's
+    // Access-Control-Allow-Origin header and exposes the bytes.
+    if (kIsWeb) {
+      return _WebRasterImage(
+        url: effective,
+        size: size,
+        placeholder: _placeholder(),
+        dio: _imageDio,
+        cache: _imageCache,
+      );
+    }
+
+    // Raster images (PNG, JPG, etc.) on native platforms.
     return Image.network(
       effective,
       width: size,
@@ -64,6 +96,72 @@ class TeamCrest extends StatelessWidget {
         size: size * 0.78,
         color: AppColors.textSecondary,
       ),
+    );
+  }
+}
+
+/// Fetches a raster image via Dio (proper CORS GET) and renders with Image.memory.
+/// Used only on Flutter Web to bypass Image.network()'s opaque-fetch limitation.
+class _WebRasterImage extends StatefulWidget {
+  final String url;
+  final double size;
+  final Widget placeholder;
+  final Dio dio;
+  final Map<String, Uint8List> cache;
+
+  const _WebRasterImage({
+    required this.url,
+    required this.size,
+    required this.placeholder,
+    required this.dio,
+    required this.cache,
+  });
+
+  @override
+  State<_WebRasterImage> createState() => _WebRasterImageState();
+}
+
+class _WebRasterImageState extends State<_WebRasterImage> {
+  late final Future<Uint8List> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetchBytes();
+  }
+
+  Future<Uint8List> _fetchBytes() async {
+    final cached = widget.cache[widget.url];
+    if (cached != null) return cached;
+
+    final response = await widget.dio.get<List<int>>(
+      widget.url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = Uint8List.fromList(response.data!);
+    widget.cache[widget.url] = bytes;
+    return bytes;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return Image.memory(
+            snapshot.data!,
+            width: widget.size,
+            height: widget.size,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => widget.placeholder,
+          );
+        }
+        if (snapshot.hasError) {
+          return widget.placeholder;
+        }
+        return widget.placeholder;
+      },
     );
   }
 }
