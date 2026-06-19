@@ -59,6 +59,7 @@ class TeamCrest extends StatelessWidget {
         width: size,
         height: size,
         placeholderBuilder: (_) => _placeholder(),
+        errorBuilder: (_, __, ___) => _placeholder(),
       );
     }
 
