@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PointsCalculationService } from '@application/services/PointsCalculationService';
+import { INotificationService } from '@application/ports/INotificationService';
 
 function formatRoundStage(stage: string, matchday: number | null, groupName: string | null): string {
   const label = stage.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -11,7 +12,10 @@ function formatRoundStage(stage: string, matchday: number | null, groupName: str
 export class ScorePredictionsHandler {
   private readonly calculator = new PointsCalculationService();
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly notificationService?: INotificationService,
+  ) {}
 
   async handle(matchId: string): Promise<void> {
     const match = await this.prisma.match.findUnique({ where: { id: matchId } });
@@ -164,6 +168,34 @@ export class ScorePredictionsHandler {
       });
 
       console.log(`[ScorePredictions] User ${userId}: +${pointsEarned} pts, competition_total=${snapshotPoints}, position=${position}`);
+    }
+
+    // Detect position changes and notify affected users
+    const usersWithPositionChange: string[] = [];
+    for (const [userId] of pointsEarnedMap.entries()) {
+      const current = await this.prisma.rankingHistory.findUnique({
+        where: { userId_snapshotKey: { userId, snapshotKey: matchId } },
+        select: { position: true },
+      });
+      const previous = await this.prisma.rankingHistory.findFirst({
+        where: {
+          userId,
+          competitionCode: match.competitionCode ?? null,
+          snapshotKey: { not: matchId },
+        },
+        orderBy: { snapshotAt: 'desc' },
+        select: { position: true },
+      });
+      if (current && previous && current.position !== previous.position) {
+        usersWithPositionChange.push(userId);
+      }
+    }
+
+    if (usersWithPositionChange.length > 0) {
+      // Fire-and-forget — notification failure must never block scoring
+      this.notificationService
+        ?.notifyRankingChanged(usersWithPositionChange)
+        .catch((err) => console.error('[ScorePredictions] Notification failed:', err));
     }
 
     console.log(`[ScorePredictions] Done scoring match ${matchId} — ${pointsEarnedMap.size} user(s) updated`);

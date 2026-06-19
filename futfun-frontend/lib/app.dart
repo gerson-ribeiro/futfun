@@ -1,9 +1,11 @@
 // lib/app.dart
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/network/dio_client.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'core/router/app_router.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/competition_theme_provider.dart';
@@ -26,6 +28,17 @@ class _FutFunAppState extends ConsumerState<FutFunApp> {
       () => ref.read(authViewModelProvider.notifier).logout(),
     );
     _initDeepLinks();
+    _initPushNotifications();
+  }
+
+  void _initPushNotifications() async {
+    if (kIsWeb) return;
+    await PushNotificationService().initialize();
+    // Register token if user is already authenticated (app restart after login)
+    final auth = ref.read(authViewModelProvider).valueOrNull;
+    if (auth?.stage == AuthStage.member || auth?.stage == AuthStage.admin) {
+      PushNotificationService().registerToken(DioClient().dio).catchError((_) {});
+    }
   }
 
   void _initDeepLinks() async {

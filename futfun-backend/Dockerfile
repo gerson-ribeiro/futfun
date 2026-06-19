@@ -35,4 +35,5 @@ COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 8080
 
-CMD ["npx", "tsx", "server.ts"]
+# Apply any pending migrations before starting the server
+CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx server.ts"]

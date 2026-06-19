@@ -1,11 +1,13 @@
 // lib/features/auth/viewmodels/auth_viewmodel.dart
 
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../data/auth_repository.dart';
 import '../data/models/auth_user.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/notifications/push_notification_service.dart';
 
 enum AuthStage { unauthenticated, pending, member, admin }
 
@@ -110,6 +112,11 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
       await _storage.write(key: 'jwt_token', value: accessToken);
       await _storage.write(key: 'refresh_token', value: refreshToken);
       await _storage.write(key: 'user_role', value: authUser.role.name);
+      if (!kIsWeb) {
+        PushNotificationService()
+            .registerToken(DioClient().dio)
+            .catchError((_) {});
+      }
       return AuthState(
         stage: _stageFromRole(authUser.role),
         user: authUser,
@@ -118,6 +125,11 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    if (!kIsWeb) {
+      await PushNotificationService()
+          .unregisterToken(DioClient().dio)
+          .catchError((_) {});
+    }
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_role');

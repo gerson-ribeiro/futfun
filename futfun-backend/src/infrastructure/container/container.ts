@@ -9,6 +9,9 @@ import { MatchSyncJob } from '@infrastructure/football-data/MatchSyncJob';
 import { ResendEmailService } from '@infrastructure/email/ResendEmailService';
 import { SmtpEmailService } from '@infrastructure/email/SmtpEmailService';
 import { IEmailService } from '@application/ports/IEmailService';
+import { FcmService } from '@infrastructure/notifications/FcmService';
+import { NotificationService } from '@infrastructure/notifications/NotificationService';
+import { INotificationService } from '@application/ports/INotificationService';
 
 function createEmailService(): IEmailService {
   if (process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -25,6 +28,7 @@ export interface IContainer {
   emailService: IEmailService;
   footballProvider: FootballDataOrgAdapter;
   secondaryProvider: TheSportsDbAdapter;
+  notificationService: INotificationService;
 }
 
 let container: IContainer | null = null;
@@ -54,10 +58,12 @@ export function initializeContainer(): IContainer {
   // Uses eventsround for bulk data + team-specific lookups to bypass the 50-event cap.
   const secondaryProvider = new TheSportsDbAdapter();
   console.log('[Container] Secondary provider: TheSportsDbAdapter (international friendlies)');
-  const matchSyncJob = new MatchSyncJob(prisma, footballProvider, secondaryProvider);
+  const fcmService = new FcmService();
+  const notificationService = new NotificationService(prisma, fcmService);
+  const matchSyncJob = new MatchSyncJob(prisma, footballProvider, secondaryProvider, notificationService);
   const emailService = createEmailService();
 
-  container = { prisma, matchSyncJob, emailService, footballProvider, secondaryProvider };
+  container = { prisma, matchSyncJob, emailService, footballProvider, secondaryProvider, notificationService };
   return container;
 }
 

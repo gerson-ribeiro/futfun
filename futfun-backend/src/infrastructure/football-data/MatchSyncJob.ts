@@ -2,6 +2,7 @@ import * as cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { IFootballDataProvider, ProviderMatch, ProviderMatchWithCompetition } from '@application/ports/IFootballDataProvider';
 import { ScorePredictionsHandler } from '@application/handlers/ScorePredictionsHandler';
+import { INotificationService } from '@application/ports/INotificationService';
 
 // Maps football-data.org status to our status
 function mapStatus(status: string): string {
@@ -51,6 +52,7 @@ export class MatchSyncJob {
   private idleTask: cron.ScheduledTask | null = null;
   private secondaryTask: cron.ScheduledTask | null = null;
   private dailyScoringTask: cron.ScheduledTask | null = null;
+  private predictionsReminderTask: cron.ScheduledTask | null = null;
   private readonly scorePredictionsHandler: ScorePredictionsHandler;
 
   constructor(
@@ -58,8 +60,9 @@ export class MatchSyncJob {
     private readonly provider: IFootballDataProvider,
     /** Optional second provider (e.g. API-Football) for matches absent from the primary provider. */
     private readonly secondaryProvider?: IFootballDataProvider,
+    private readonly notificationService?: INotificationService,
   ) {
-    this.scorePredictionsHandler = new ScorePredictionsHandler(prisma);
+    this.scorePredictionsHandler = new ScorePredictionsHandler(prisma, notificationService);
   }
 
   start(): void {
@@ -113,6 +116,18 @@ export class MatchSyncJob {
     });
     console.log('MatchSyncJob daily scoring cron: 03:00 UTC (midnight BRT)');
 
+    // Predictions reminder: 15:00 UTC = 12:00 BRT — notifies users with unpredicted matches today/tomorrow
+    if (this.notificationService) {
+      this.predictionsReminderTask = cron.schedule('0 15 * * *', async () => {
+        try {
+          await this.notificationService!.sendPredictionsReminder();
+        } catch (err: any) {
+          await this.handleCronError(err, 'predictions-reminder');
+        }
+      });
+      console.log('MatchSyncJob predictions reminder cron: 15:00 UTC (12:00 BRT)');
+    }
+
     console.log('MatchSyncJob started');
     // Delay startup syncs by 5s so the event loop settles after server.listen() and
     // avoids TLS handshake ECONNRESET caused by simultaneous Neon cold-start + HTTP fetches.
@@ -149,6 +164,7 @@ export class MatchSyncJob {
     this.idleTask?.stop();
     this.secondaryTask?.stop();
     this.dailyScoringTask?.stop();
+    this.predictionsReminderTask?.stop();
   }
 
   /** Syncs all enabled competitions + discovers new competitions via date-range scan (primary only). */
