@@ -3,10 +3,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Prisma generate reads the schema URL at build time; the real value is
-# injected by Cloud Run at runtime via --set-secrets.
-ENV DATABASE_URL="postgresql://placeholder:5432/placeholder"
-
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 

@@ -26,8 +26,32 @@ jobs:
           project_id: futfun-498118
 
       - name: Build and push Docker image
-        run: gcloud builds submit --project futfun-498118
+        run: gcloud beta builds submit --project futfun-498118
         working-directory: futfun-backend
+
+      - name: Debug migration env vars
+        id: debug_migrate
+        continue-on-error: true
+        run: |
+          gcloud run jobs deploy futfun-migrate-debug \
+            --project futfun-498118 \
+            --image gcr.io/futfun-498118/futfun-backend:latest \
+            --region southamerica-east1 \
+            --command sh \
+            --args "-c,echo DB_URL_SET=$([ -n \"$DATABASE_URL\" ] && echo YES || echo NO) DB_URL_LEN=${#DATABASE_URL} && env | grep -v SECRET | sort | head -30 && exit 0" \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --max-retries 0
+          gcloud run jobs execute futfun-migrate-debug \
+            --project futfun-498118 \
+            --region southamerica-east1 \
+            --wait || true
+          sleep 5
+          gcloud logging read \
+            'resource.type="cloud_run_job" AND resource.labels.job_name="futfun-migrate-debug"' \
+            --project futfun-498118 \
+            --limit 30 \
+            --format "value(textPayload,jsonPayload.message)" \
+            --freshness 10m || true
 
       - name: Apply database migrations
         run: |
