@@ -30,6 +30,8 @@ jobs:
         working-directory: futfun-backend
 
       - name: Apply database migrations
+        id: migrate
+        continue-on-error: true
         run: |
           gcloud run jobs deploy futfun-migrate \
             --project futfun-498118 \
@@ -43,6 +45,19 @@ jobs:
             --project futfun-498118 \
             --region southamerica-east1 \
             --wait
+
+      - name: Show migration logs on failure
+        if: steps.migrate.outcome == 'failure'
+        run: |
+          echo "=== Migration job failed — fetching logs ==="
+          sleep 5
+          gcloud logging read \
+            'resource.type="cloud_run_job" AND resource.labels.job_name="futfun-migrate"' \
+            --project futfun-498118 \
+            --limit 80 \
+            --format "value(textPayload,jsonPayload.message)" \
+            --freshness 10m || true
+          exit 1
 
       - name: Deploy to Cloud Run
         run: |
