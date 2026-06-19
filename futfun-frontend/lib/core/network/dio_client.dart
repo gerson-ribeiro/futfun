@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -90,6 +91,11 @@ class DioClient {
           );
           final newToken = resp.data['accessToken'] as String;
           await _storage.write(key: 'jwt_token', value: newToken);
+          // Keep user_role in sync so app restarts reflect the latest role from DB
+          final roleFromToken = _extractRoleFromToken(newToken);
+          if (roleFromToken != null) {
+            await _storage.write(key: 'user_role', value: roleFromToken.toLowerCase());
+          }
 
           // Flush queued requests with the new token.
           for (final pending in _queue) {
@@ -121,6 +127,18 @@ class DioClient {
         }
       },
     ));
+  }
+
+  String? _extractRoleFromToken(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      return data['role'] as String?;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _doForceLogout() async {

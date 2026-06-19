@@ -1,5 +1,6 @@
 // lib/features/auth/viewmodels/auth_viewmodel.dart
 
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../data/auth_repository.dart';
@@ -35,9 +36,47 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
     if (token != null) {
       final roleStr = await _storage.read(key: 'user_role') ?? 'member';
       final role = parseUserRole(roleStr);
+      // Always re-check with the server when stored role is PENDING so an
+      // approved user doesn't stay stuck on the waiting screen after restarting.
+      if (role == UserRole.pending) return _fetchCurrentRole();
       return AuthState(stage: _stageFromRole(role));
     }
     return const AuthState(stage: AuthStage.unauthenticated);
+  }
+
+  /// Exchanges the stored refresh token for a fresh access token and returns
+  /// an AuthState reflecting the role currently recorded in the database.
+  Future<AuthState> _fetchCurrentRole() async {
+    try {
+      final storedRefresh = await _storage.read(key: 'refresh_token');
+      if (storedRefresh == null) return const AuthState(stage: AuthStage.unauthenticated);
+      final newToken = await _repository.refreshToken(storedRefresh);
+      final roleStr = _roleFromJwt(newToken);
+      final role = parseUserRole(roleStr);
+      await _storage.write(key: 'jwt_token', value: newToken);
+      await _storage.write(key: 'user_role', value: role.name);
+      return AuthState(stage: _stageFromRole(role));
+    } catch (_) {
+      return const AuthState(stage: AuthStage.pending);
+    }
+  }
+
+  String _roleFromJwt(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return 'PENDING';
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      return data['role'] as String? ?? 'PENDING';
+    } catch (_) {
+      return 'PENDING';
+    }
+  }
+
+  /// Called from the pending screen's "Verificar aprovação" button.
+  Future<void> checkApprovalStatus() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(_fetchCurrentRole);
   }
 
   Future<String> getLoginUrl(String provider, {String state = ''}) async {

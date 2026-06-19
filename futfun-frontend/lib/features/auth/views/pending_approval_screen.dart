@@ -36,6 +36,11 @@ class PendingApprovalScreen extends ConsumerWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () => ref.read(authViewModelProvider.notifier).checkApprovalStatus(),
+                child: const Text('Verificar aprovação'),
+              ),
+              const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: () => ref.read(authViewModelProvider.notifier).logout(),
                 child: const Text('Sair'),

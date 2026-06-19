@@ -44,7 +44,9 @@ export const PATCH = withAdmin(async (req: NextRequest, _user: TokenPayload, con
 
     if (wasPromotedToMember) {
       const emailService = new ResendEmailService();
-      await emailService.sendApprovalNotification(updated.email, updated.displayName);
+      // Fire-and-forget: email failure must not roll back an already-committed approval
+      emailService.sendApprovalNotification(updated.email, updated.displayName)
+        .catch(err => console.error('[approval] Failed to send approval email:', err));
     }
 
     return NextResponse.json({ user: updated });
