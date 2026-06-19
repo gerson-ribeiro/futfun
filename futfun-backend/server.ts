@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { initializeContainer, getContainer } from './src/infrastructure/container/container';
+import { applyStartupMigrations } from './src/infrastructure/db/startupMigrations';
 
 // Prevent SIGPIPE from crashing the process (e.g. when a client disconnects mid-response)
 process.on('SIGPIPE', () => {});
@@ -14,11 +15,15 @@ const port = parseInt(process.env.PORT || '4000', 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-app.prepare().then(() => {
+app.prepare().then(async () => {
   // Initialize DI container
   initializeContainer();
 
-  const { matchSyncJob } = getContainer();
+  const { prisma, matchSyncJob } = getContainer();
+
+  // Apply idempotent schema migrations at startup (avoids Cloud Run Job permission issues)
+  await applyStartupMigrations(prisma);
+
   matchSyncJob.start();
 
   const server = createServer(async (req, res) => {
