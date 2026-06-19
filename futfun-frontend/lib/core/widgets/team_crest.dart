@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../constants/app_colors.dart';
+import 'svg_web_view_stub.dart'
+    if (dart.library.html) 'svg_web_view_web.dart';
 
 /// Displays a team's crest image from a URL.
 ///
@@ -52,7 +54,20 @@ class TeamCrest extends StatelessWidget {
 
     final effective = _effectiveUrl(url!);
 
-    // SVG files: use flutter_svg on all platforms.
+    // On web, flutter_svg fails on SVGs with percentage-based transforms
+    // (e.g. translate(100%, -50%)). Fetch bytes via Dio and hand off to the
+    // browser's native SVG engine via HtmlElementView.
+    if (_isSvg(url!) && kIsWeb) {
+      return _WebSvgImage(
+        url: effective,
+        size: size,
+        placeholder: _placeholder(),
+        dio: _imageDio,
+        cache: _imageCache,
+      );
+    }
+
+    // SVG files on native platforms: use flutter_svg.
     if (_isSvg(url!)) {
       return SvgPicture.network(
         effective,
@@ -97,6 +112,63 @@ class TeamCrest extends StatelessWidget {
         size: size * 0.78,
         color: AppColors.textSecondary,
       ),
+    );
+  }
+}
+
+/// Fetches an SVG via Dio and renders it using the browser's native SVG engine
+/// (HtmlElementView). Used only on Flutter Web because flutter_svg cannot
+/// handle SVGs with percentage-based transform values.
+class _WebSvgImage extends StatefulWidget {
+  final String url;
+  final double size;
+  final Widget placeholder;
+  final Dio dio;
+  final Map<String, Uint8List> cache;
+
+  const _WebSvgImage({
+    required this.url,
+    required this.size,
+    required this.placeholder,
+    required this.dio,
+    required this.cache,
+  });
+
+  @override
+  State<_WebSvgImage> createState() => _WebSvgImageState();
+}
+
+class _WebSvgImageState extends State<_WebSvgImage> {
+  late final Future<Uint8List> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetchBytes();
+  }
+
+  Future<Uint8List> _fetchBytes() async {
+    final cached = widget.cache[widget.url];
+    if (cached != null) return cached;
+    final response = await widget.dio.get<List<int>>(
+      widget.url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = Uint8List.fromList(response.data!);
+    widget.cache[widget.url] = bytes;
+    return bytes;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return buildSvgWebView(widget.url, snapshot.data!, widget.size);
+        }
+        return widget.placeholder;
+      },
     );
   }
 }
