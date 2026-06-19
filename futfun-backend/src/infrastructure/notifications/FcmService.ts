@@ -4,19 +4,21 @@ export class FcmService {
   private readonly app: admin.app.App | null = null;
 
   constructor() {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    if (!raw) {
-      console.warn('[FcmService] FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications disabled');
-      return;
-    }
     try {
-      const serviceAccount = JSON.parse(raw);
+      // Prefer an explicit service account JSON (useful in local dev / non-GCP envs).
+      // On Cloud Run the service account has ADC automatically — no JSON needed.
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      const credential = raw
+        ? admin.credential.cert(JSON.parse(raw))
+        : admin.credential.applicationDefault();
+
       this.app = admin.apps.length
         ? admin.app()
-        : admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+        : admin.initializeApp({ credential });
+
       console.log('[FcmService] Firebase Admin initialized');
     } catch (err) {
-      console.error('[FcmService] Failed to initialize Firebase Admin:', err);
+      console.warn('[FcmService] Could not initialize Firebase Admin — push notifications disabled:', err);
     }
   }
 
