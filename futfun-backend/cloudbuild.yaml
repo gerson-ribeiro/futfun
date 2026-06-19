@@ -19,11 +19,31 @@ steps:
       - push
       - 'gcr.io/$PROJECT_ID/futfun-backend:latest'
 
-  # Apply pending database migrations before deploying the new revision
-  - name: 'gcr.io/$PROJECT_ID/futfun-backend:$BUILD_ID'
-    entrypoint: npx
-    args: ['prisma', 'migrate', 'deploy']
-    secretEnv: ['DATABASE_URL']
+  # Create/update the migration job (uses Cloud Run's SA which already has secret access)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - futfun-migrate
+      - '--image=gcr.io/$PROJECT_ID/futfun-backend:$BUILD_ID'
+      - '--region=southamerica-east1'
+      - '--command=npx'
+      - '--args=prisma,migrate,deploy'
+      - '--set-secrets=DATABASE_URL=DATABASE_URL:latest'
+      - '--max-retries=0'
+
+  # Execute the migration job and wait for it to complete before deploying
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - execute
+      - futfun-migrate
+      - '--region=southamerica-east1'
+      - '--wait'
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
@@ -45,11 +65,6 @@ steps:
 images:
   - 'gcr.io/$PROJECT_ID/futfun-backend:$BUILD_ID'
   - 'gcr.io/$PROJECT_ID/futfun-backend:latest'
-
-availableSecrets:
-  secretManager:
-    - versionName: projects/$PROJECT_ID/secrets/DATABASE_URL/versions/latest
-      env: DATABASE_URL
 
 options:
   logging: CLOUD_LOGGING_ONLY
