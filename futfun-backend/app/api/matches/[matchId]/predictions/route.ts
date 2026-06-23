@@ -7,13 +7,13 @@ import { TokenPayload } from '@application/ports/ITokenService';
 export const GET = withAuth(async (
   _req: NextRequest,
   user: TokenPayload,
-  { params }: { params: Promise<{ matchExternalId: string }> },
+  { params }: { params: Promise<{ matchId: string }> },
 ) => {
   try {
-    const { matchExternalId } = await params;
-    const externalId = parseInt(matchExternalId, 10);
+    const { matchId } = await params;
+    const externalId = parseInt(matchId, 10);
     if (isNaN(externalId)) {
-      return NextResponse.json({ error: 'Invalid matchExternalId' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid matchId' }, { status: 400 });
     }
 
     const { prisma } = getContainer();
