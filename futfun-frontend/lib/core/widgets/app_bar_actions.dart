@@ -6,11 +6,11 @@ import '../providers/theme_provider.dart';
 import 'logout_helper.dart';
 import 'diagnostic_screen.dart';
 
-/// Returns a hamburger [IconButton] to open the side drawer on mobile web,
-/// or null on other platforms/sizes. Use as [AppBar.leading].
+/// Returns a hamburger [IconButton] to open the side drawer on mobile
+/// (web and native) or null on wide desktop web.
 Widget? buildLeadingWidget(BuildContext context, WidgetRef ref) {
-  final isMobileWeb = kIsWeb && MediaQuery.sizeOf(context).width < 600;
-  if (!isMobileWeb) return null;
+  final isWideWeb = kIsWeb && MediaQuery.sizeOf(context).width >= 600;
+  if (isWideWeb) return null;
   return IconButton(
     icon: const Icon(Icons.menu),
     tooltip: 'Menu',

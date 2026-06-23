@@ -113,38 +113,19 @@ class _AppShell extends ConsumerWidget {
       );
     }
 
-    // ── Mobile web: Drawer com hambúrguer ──────────────────────────────────
-    if (isMobileWeb) {
-      final scaffoldKey = ref.read(shellScaffoldKeyProvider);
-      return Scaffold(
-        key: scaffoldKey,
-        drawer: _NavDrawer(
-          currentIndex: currentIndex,
-          navItems: navItems,
-          onNavigate: (i) {
-            scaffoldKey.currentState?.closeDrawer();
-            navigate(i);
-          },
-        ),
-        body: child,
-      );
-    }
-
-    // ── App nativo mobile: BottomNavigationBar ─────────────────────────────
+    // ── Mobile (web e nativo): Drawer com hambúrguer ──────────────────────
+    final scaffoldKey = ref.read(shellScaffoldKeyProvider);
     return Scaffold(
-      body: child,
-      bottomNavigationBar: BottomNavigationBar(
+      key: scaffoldKey,
+      drawer: _NavDrawer(
         currentIndex: currentIndex,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        onTap: navigate,
-        items: navItems
-            .map((d) => BottomNavigationBarItem(
-                  icon: Icon(d.icon),
-                  label: d.label,
-                ))
-            .toList(),
+        navItems: navItems,
+        onNavigate: (i) {
+          scaffoldKey.currentState?.closeDrawer();
+          navigate(i);
+        },
       ),
+      body: child,
     );
   }
 }
