@@ -1,8 +1,8 @@
 // lib/core/providers/active_competition_provider.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../features/competitions/data/models/competition_model.dart';
+import '../storage/app_storage.dart';
 import '../../features/competitions/data/repositories/competition_repository.dart';
 
 class ActiveCompetitionState {
@@ -18,7 +18,7 @@ class ActiveCompetitionState {
 
 class ActiveCompetitionNotifier extends AsyncNotifier<ActiveCompetitionState> {
   static const _storageKey = 'active_competition_code';
-  final _storage = const FlutterSecureStorage();
+  final _storage = appStorage;
 
   @override
   Future<ActiveCompetitionState> build() async {

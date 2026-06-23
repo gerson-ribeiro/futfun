@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../storage/app_storage.dart';
 
 class DioClient {
   // Singleton — all repositories share the same Dio instance and refresh state.
@@ -21,7 +21,7 @@ class DioClient {
 
   late final Dio _dio;
   late final Dio _refreshDio; // no interceptors — avoids infinite refresh loops
-  final _storage = const FlutterSecureStorage();
+  final _storage = appStorage;
 
   // Refresh state shared across all concurrent requests.
   bool _isRefreshing = false;

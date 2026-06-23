@@ -3,11 +3,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../data/auth_repository.dart';
 import '../data/models/auth_user.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/notifications/push_notification_service.dart';
+import '../../../core/storage/app_storage.dart';
 
 enum AuthStage { unauthenticated, pending, member, admin }
 
@@ -28,7 +28,7 @@ class AuthState {
 }
 
 class AuthViewModel extends AsyncNotifier<AuthState> {
-  final _storage = const FlutterSecureStorage();
+  final _storage = appStorage;
   late final AuthRepository _repository;
 
   @override
