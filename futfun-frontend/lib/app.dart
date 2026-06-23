@@ -1,7 +1,6 @@
 // lib/app.dart
 
 import 'package:app_links/app_links.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/network/dio_client.dart';
@@ -32,7 +31,6 @@ class _FutFunAppState extends ConsumerState<FutFunApp> {
   }
 
   void _initPushNotifications() async {
-    if (kIsWeb) return;
     await PushNotificationService().initialize();
     // Register token if user is already authenticated (app restart after login)
     final auth = ref.read(authViewModelProvider).valueOrNull;

@@ -30,6 +30,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Create gradle.properties
+        run: |
+          cat > android/gradle.properties << EOF
+          org.gradle.jvmargs=-Xmx4G -XX:+HeapDumpOnOutOfMemoryError
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOF
+
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/futfun-release.jks
 

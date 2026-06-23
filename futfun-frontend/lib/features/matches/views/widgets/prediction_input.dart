@@ -49,8 +49,8 @@ class _PredictionInputState extends State<PredictionInput> {
   }
 
   void _submit() {
-    final home = int.tryParse(_homeCtrl.text);
-    final away = int.tryParse(_awayCtrl.text);
+    final home = _homeCtrl.text.isEmpty ? 0 : int.tryParse(_homeCtrl.text);
+    final away = _awayCtrl.text.isEmpty ? 0 : int.tryParse(_awayCtrl.text);
     if (home == null || away == null) return;
     widget.onSubmit(home, away);
   }
@@ -138,7 +138,6 @@ class _ScoreField extends StatelessWidget {
         LengthLimitingTextInputFormatter(2),
       ],
       decoration: InputDecoration(
-        hintText: '0',
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         border: OutlineInputBorder(
