@@ -53,4 +53,8 @@ class CompetitionRepository {
   Future<void> resetRanking(String code) async {
     await _dio.post('/api/admin/competitions/$code/reset-ranking');
   }
+
+  Future<void> rescoreRanking(String code) async {
+    await _dio.post('/api/admin/competitions/$code/rescore');
+  }
 }

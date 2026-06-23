@@ -21,12 +21,63 @@ class _AdminCompetitionsScreenState
   final _nameCtrl = TextEditingController();
   bool _adding = false;
   bool _syncing = false;
+  String? _rescoring;
 
   @override
   void dispose() {
     _codeCtrl.dispose();
     _nameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _confirmRescoreRanking(String code, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Recalcular ranking'),
+        content: Text(
+          'Isso vai zerar e recalcular do zero os pontos de "$name".\n\n'
+          'Os palpites são desmarcados e repontuados com base nos placares '
+          'já registrados no banco. Use quando o ranking estiver inconsistente.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            child: const Text('Recalcular'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _rescoring = code);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(adminCompetitionsViewModelProvider.notifier)
+          .rescoreRanking(code);
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Ranking de "$name" sendo recalculado — aguarde alguns segundos')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Erro ao recalcular: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _rescoring = null);
+    }
   }
 
   Future<void> _confirmResetRanking(String code, String name) async {
@@ -242,9 +293,22 @@ class _AdminCompetitionsScreenState
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (_rescoring == comp.code)
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else
+                            IconButton(
+                              icon: const Icon(Icons.calculate_outlined),
+                              tooltip: 'Recalcular ranking',
+                              color: AppColors.primary,
+                              onPressed: () => _confirmRescoreRanking(comp.code, comp.name),
+                            ),
                           IconButton(
                             icon: const Icon(Icons.restart_alt),
-                            tooltip: 'Reiniciar ranking',
+                            tooltip: 'Reiniciar ranking (só apaga)',
                             color: AppColors.textSecondary,
                             onPressed: () => _confirmResetRanking(comp.code, comp.name),
                           ),

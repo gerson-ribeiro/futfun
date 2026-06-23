@@ -23,6 +23,10 @@ class AdminCompetitionsViewModel
     await _repository.resetRanking(code);
   }
 
+  Future<void> rescoreRanking(String code) async {
+    await _repository.rescoreRanking(code);
+  }
+
   Future<void> toggleGlobal(String code) async {
     final current = state.valueOrNull;
     if (current == null) return;
