@@ -9,8 +9,6 @@ import '../viewmodels/predictions_viewmodel.dart';
 
 // 'all' | 'scheduled' | 'finished'
 final _predFilterProvider = StateProvider<String>((ref) => 'all');
-// true = encerrados mais recentes primeiro (padrão)
-final _predSortDescProvider = StateProvider<bool>((ref) => true);
 
 Future<void> _showEditDialog(
   BuildContext context,
@@ -109,7 +107,6 @@ class PredictionsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncState = ref.watch(predictionsViewModelProvider);
-    final sortDesc = ref.watch(_predSortDescProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -118,12 +115,6 @@ class PredictionsScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
         leading: buildLeadingWidget(context, ref),
         actions: [
-          IconButton(
-            icon: Icon(sortDesc ? Icons.arrow_downward : Icons.arrow_upward),
-            tooltip: sortDesc ? 'Mais antigos primeiro' : 'Mais recentes primeiro',
-            onPressed: () =>
-                ref.read(_predSortDescProvider.notifier).state = !sortDesc,
-          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(predictionsViewModelProvider.notifier).refresh(),
@@ -175,7 +166,7 @@ class PredictionsScreen extends ConsumerWidget {
 
           final filter = ref.watch(_predFilterProvider);
           final filtered = _applyFilter(predictions, filter);
-          final groups = _groupSmart(filtered, sortDesc: sortDesc);
+          final groups = _groupSmart(filtered);
 
           return Column(
             children: [
@@ -257,8 +248,7 @@ class PredictionsScreen extends ConsumerWidget {
     }
   }
 
-  List<_PredictionGroup> _groupSmart(
-      List<PredictionWithMatch> predictions, {bool sortDesc = true}) {
+  List<_PredictionGroup> _groupSmart(List<PredictionWithMatch> predictions) {
     final upcoming = predictions
         .where((p) => p.match.status != 'FINISHED')
         .toList()
@@ -267,9 +257,7 @@ class PredictionsScreen extends ConsumerWidget {
     final finished = predictions
         .where((p) => p.match.status == 'FINISHED')
         .toList()
-      ..sort((a, b) => sortDesc
-          ? b.match.kickoffTime.compareTo(a.match.kickoffTime)
-          : a.match.kickoffTime.compareTo(b.match.kickoffTime));
+      ..sort((a, b) => b.match.kickoffTime.compareTo(a.match.kickoffTime));
 
     final groups = <_PredictionGroup>[];
     if (upcoming.isNotEmpty) {

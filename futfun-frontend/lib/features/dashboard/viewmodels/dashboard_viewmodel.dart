@@ -4,6 +4,7 @@ import '../data/repositories/dashboard_repository.dart';
 import '../../ranking/data/models/ranking_entry.dart';
 import '../../ranking/data/repositories/ranking_repository.dart';
 import '../../../core/providers/active_competition_provider.dart';
+import '../../auth/viewmodels/auth_viewmodel.dart';
 
 class DashboardState {
   final List<RankingHistoryEntry> history;
@@ -21,10 +22,16 @@ class DashboardViewModel extends AsyncNotifier<DashboardState> {
     _dashboardRepo = DashboardRepository();
     _rankingRepo = RankingRepository();
 
-    // Synchronous watch — Riverpod re-runs build() whenever the competition
-    // state changes (selection, loading, etc).  Using the raw provider (not
-    // .future or .select) avoids the new-object-per-build issue with selectors.
+    // ref.watch MUST be called synchronously before any await.
     final asyncActive = ref.watch(activeCompetitionNotifierProvider);
+
+    // Wait for auth before making API calls.
+    final authState = await ref.watch(authViewModelProvider.future);
+    if (authState.stage == AuthStage.unauthenticated ||
+        authState.stage == AuthStage.pending) {
+      return const DashboardState(history: []);
+    }
+
     final code = asyncActive.valueOrNull?.selected?.code;
 
     if (code == null) return const DashboardState(history: []);
