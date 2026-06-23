@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/shell_scaffold_key_provider.dart';
 import '../providers/theme_provider.dart';
 import 'logout_helper.dart';
+import 'diagnostic_screen.dart';
 
 /// Returns a hamburger [IconButton] to open the side drawer on mobile web,
 /// or null on other platforms/sizes. Use as [AppBar.leading].
@@ -36,6 +37,13 @@ List<Widget> buildAppBarActions(BuildContext context, WidgetRef ref) {
       icon: const Icon(Icons.logout),
       tooltip: 'Sair',
       onPressed: () => confirmLogout(context, ref),
+    ),
+    IconButton(
+      icon: const Icon(Icons.bug_report_outlined),
+      tooltip: 'Diagnóstico',
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const DiagnosticScreen()),
+      ),
     ),
   ];
 }

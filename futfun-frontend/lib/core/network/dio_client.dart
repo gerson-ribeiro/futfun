@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../storage/app_storage.dart';
+import '../storage/app_logger.dart';
 
 class DioClient {
   // Singleton — all repositories share the same Dio instance and refresh state.
@@ -54,12 +55,16 @@ class DioClient {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final token = await _storage.read(key: 'jwt_token');
-        if (token != null) {
+        final hasToken = token != null;
+        AppLogger.log('→ ${options.method} ${options.path} token=$hasToken');
+        if (hasToken) {
           options.headers['Authorization'] = 'Bearer $token';
         }
         handler.next(options);
       },
       onError: (error, handler) async {
+        final status = error.response?.statusCode ?? 0;
+        AppLogger.log('✗ ${error.requestOptions.method} ${error.requestOptions.path} status=$status hasAuth=${error.requestOptions.headers.containsKey("Authorization")}');
         final is401 = error.response?.statusCode == 401;
         if (!is401) return handler.next(error);
 

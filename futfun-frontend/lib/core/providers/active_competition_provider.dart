@@ -3,7 +3,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/competitions/data/models/competition_model.dart';
 import '../storage/app_storage.dart';
+import '../storage/app_logger.dart';
 import '../../features/competitions/data/repositories/competition_repository.dart';
+import '../../features/auth/viewmodels/auth_viewmodel.dart';
 
 class ActiveCompetitionState {
   final List<CompetitionModel> available;
@@ -22,6 +24,16 @@ class ActiveCompetitionNotifier extends AsyncNotifier<ActiveCompetitionState> {
 
   @override
   Future<ActiveCompetitionState> build() async {
+    // Wait for auth before calling /api/competitions — prevents 401 on
+    // deep-link login where the token arrives slightly after the shell builds.
+    final authState = await ref.watch(authViewModelProvider.future);
+    if (authState.stage == AuthStage.unauthenticated ||
+        authState.stage == AuthStage.pending) {
+      AppLogger.log('[Competition] Skipping load — not authenticated yet');
+      return const ActiveCompetitionState(available: []);
+    }
+
+    AppLogger.log('[Competition] Loading competitions (stage=${authState.stage.name})');
     final all = await CompetitionRepository().getCompetitions();
     final available = all.where((c) => c.enabled && !c.hidden).toList();
 
