@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../../../core/network/dio_client.dart';
 import '../models/match_model.dart';
+import '../models/match_prediction_item.dart';
 
 class MatchesRepository {
   final Dio _dio;
@@ -56,5 +57,11 @@ class MatchesRepository {
   Future<MatchModel> getMatch(String matchId) async {
     final response = await _dio.get('/api/matches/$matchId');
     return MatchModel.fromJson(response.data['match'] as Map<String, dynamic>);
+  }
+
+  Future<List<MatchPredictionItem>> getMatchPredictions(int matchExternalId) async {
+    final response = await _dio.get('/api/matches/$matchExternalId/predictions');
+    final list = response.data['predictions'] as List<dynamic>;
+    return list.map((e) => MatchPredictionItem.fromJson(e as Map<String, dynamic>)).toList();
   }
 }

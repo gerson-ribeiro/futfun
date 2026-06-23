@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_bar_actions.dart';
@@ -352,51 +353,17 @@ class _PredictionCard extends ConsumerStatefulWidget {
 }
 
 class _PredictionCardState extends ConsumerState<_PredictionCard> {
-  bool _expanded = false;
-
   PredictionWithMatch get prediction => widget.prediction;
 
-  List<_BreakdownItem> _buildBreakdown() {
+  void _navigateToPredictions(BuildContext context) {
     final m = prediction.match;
-    final ph = prediction.predictedHome;
-    final pa = prediction.predictedAway;
-    final sh = m.scoreHome ?? 0;
-    final sa = m.scoreAway ?? 0;
-
-    int sign(int v) => v > 0 ? 1 : (v < 0 ? -1 : 0);
-    final resultCorrect = sign(ph - pa) == sign(sh - sa);
-    final homeCorrect = ph == sh;
-    final awayCorrect = pa == sa;
-
-    if (!resultCorrect) {
-      return [
-        _BreakdownItem(ok: false, label: 'Resultado errado', pts: 0),
-      ];
-    }
-
-    if (homeCorrect && awayCorrect) {
-      return [
-        _BreakdownItem(ok: true, label: 'Placar exato! ($ph × $pa)', pts: 10),
-      ];
-    }
-
-    return [
-      _BreakdownItem(ok: true, label: 'Resultado certo', pts: 5),
-      if (homeCorrect)
-        _BreakdownItem(ok: true, label: 'Placar do mandante correto ($ph)', pts: 2)
-      else if (awayCorrect)
-        _BreakdownItem(ok: true, label: 'Placar do visitante correto ($pa)', pts: 2),
-      if (!homeCorrect)
-        _BreakdownItem(
-            ok: false,
-            label: 'Placar do mandante errado ($ph ≠ $sh)',
-            pts: 0),
-      if (!awayCorrect)
-        _BreakdownItem(
-            ok: false,
-            label: 'Placar do visitante errado ($pa ≠ $sa)',
-            pts: 0),
-    ];
+    final home = Uri.encodeComponent(m.homeTeamShort ?? m.homeTeamName);
+    final away = Uri.encodeComponent(m.awayTeamShort ?? m.awayTeamName);
+    final hs = m.scoreHome != null ? '&hs=${m.scoreHome}' : '';
+    final as_ = m.scoreAway != null ? '&as=${m.scoreAway}' : '';
+    context.push(
+      '/matches/${m.externalId}/predictions?home=$home&away=$away&status=${m.status}$hs$as_',
+    );
   }
 
   @override
@@ -404,11 +371,10 @@ class _PredictionCardState extends ConsumerState<_PredictionCard> {
     final m = prediction.match;
     final pts = prediction.points;
     final now = DateTime.now();
-    final isFinished = m.status == 'FINISHED';
     final isEditable = m.status == 'SCHEDULED' &&
         m.kickoffTime.isAfter(now) &&
         m.kickoffTime.difference(now).inDays <= 1;
-    final isExpandable = isFinished && pts != null;
+    final isLiveOrFinished = m.status != 'SCHEDULED';
 
     Color? ptsColor;
     if (pts != null) {
@@ -423,8 +389,8 @@ class _PredictionCardState extends ConsumerState<_PredictionCard> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: isExpandable
-            ? () => setState(() => _expanded = !_expanded)
+        onTap: isLiveOrFinished
+            ? () => _navigateToPredictions(context)
             : (isEditable ? () => _showEditDialog(context, ref, prediction) : null),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -445,10 +411,10 @@ class _PredictionCardState extends ConsumerState<_PredictionCard> {
                   Row(
                     children: [
                       _buildStatusBadge(m.status),
-                      if (isExpandable) ...[
+                      if (isLiveOrFinished) ...[
                         const SizedBox(width: 4),
-                        Icon(
-                          _expanded ? Icons.expand_less : Icons.expand_more,
+                        const Icon(
+                          Icons.chevron_right,
                           size: 16,
                           color: AppColors.textSecondary,
                         ),
@@ -469,7 +435,7 @@ class _PredictionCardState extends ConsumerState<_PredictionCard> {
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: isFinished
+                    child: m.status == 'FINISHED'
                         ? Text(
                             '${m.scoreHome ?? 0} - ${m.scoreAway ?? 0}',
                             style: const TextStyle(
@@ -552,7 +518,7 @@ class _PredictionCardState extends ConsumerState<_PredictionCard> {
                         ),
                       ),
                     )
-                  else if (isFinished)
+                  else if (m.status == 'FINISHED')
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
@@ -572,35 +538,6 @@ class _PredictionCardState extends ConsumerState<_PredictionCard> {
                     ),
                 ],
               ),
-              // Breakdown inline (expandido)
-              if (_expanded && isExpandable) ...[
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'COMO GANHEI ESTES PONTOS',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      ..._buildBreakdown().map((item) => _BreakdownRow(item: item)),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -640,49 +577,3 @@ class _PredictionCardState extends ConsumerState<_PredictionCard> {
   }
 }
 
-class _BreakdownItem {
-  final bool ok;
-  final String label;
-  final int pts;
-  const _BreakdownItem({required this.ok, required this.label, required this.pts});
-}
-
-class _BreakdownRow extends StatelessWidget {
-  final _BreakdownItem item;
-  const _BreakdownRow({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Text(
-            item.ok ? '✅' : '❌',
-            style: const TextStyle(fontSize: 13),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 12,
-                color: item.ok ? const Color(0xFF424242) : AppColors.textSecondary,
-              ),
-            ),
-          ),
-          Text(
-            item.pts > 0 ? '+${item.pts}' : '+0',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: item.ok && item.pts > 0
-                  ? AppColors.success
-                  : AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

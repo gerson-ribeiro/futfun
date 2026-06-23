@@ -18,6 +18,7 @@ import '../../features/admin/views/admin_invites_screen.dart';
 import '../../features/competitions/views/competition_settings_screen.dart';
 import '../../features/competitions/views/admin_competitions_screen.dart';
 import '../../features/predictions/views/predictions_screen.dart';
+import '../../features/matches/views/match_predictions_screen.dart';
 import '../constants/app_colors.dart';
 import '../providers/active_competition_provider.dart';
 import '../../features/competitions/data/models/competition_model.dart';
@@ -265,6 +266,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
+      GoRoute(
+        path: '/matches/:matchExternalId/predictions',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['matchExternalId'] ?? '') ?? 0;
+          final q = state.uri.queryParameters;
+          return MatchPredictionsScreen(
+            matchExternalId: id,
+            homeTeam: q['home'] ?? '',
+            awayTeam: q['away'] ?? '',
+            matchStatus: q['status'] ?? '',
+            homeScore: int.tryParse(q['hs'] ?? ''),
+            awayScore: int.tryParse(q['as'] ?? ''),
+          );
+        },
+      ),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/pending', builder: (_, __) => const PendingApprovalScreen()),
       GoRoute(
