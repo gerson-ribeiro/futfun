@@ -335,12 +335,16 @@ export class MatchSyncJob {
    */
   async scorePendingPredictions(): Promise<void> {
     try {
+      // Also catches predictions where scoredAt was set by the atomic claim but the
+      // process died before writing points (points still null).
       const matchesWithPending = await this.prisma.match.findMany({
         where: {
           status: 'FINISHED',
           scoreHome: { not: null },
           scoreAway: { not: null },
-          predictions: { some: { scoredAt: null } },
+          predictions: {
+            some: { OR: [{ scoredAt: null }, { points: null }] },
+          },
         },
         select: { id: true, homeTeamName: true, awayTeamName: true },
       });

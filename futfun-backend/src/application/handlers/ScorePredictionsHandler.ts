@@ -32,18 +32,35 @@ export class ScorePredictionsHandler {
       return;
     }
 
-    const predictions = await this.prisma.prediction.findMany({
-      where: { matchId, scoredAt: null },
+    const now = new Date();
+
+    // Atomically claim all unscored predictions for this match by setting scoredAt.
+    // PostgreSQL serialises concurrent UPDATE statements: the second concurrent call
+    // will find 0 rows (already claimed by the first) and return early, preventing
+    // double-scoring when the auto-sync and a manual sync overlap.
+    //
+    // Also re-claims predictions where scoredAt was set but points is still null
+    // (i.e. the process crashed after the claim but before writing points).
+    const claimed = await this.prisma.prediction.updateMany({
+      where: {
+        matchId,
+        OR: [{ scoredAt: null }, { points: null }],
+      },
+      data: { scoredAt: now },
     });
 
-    if (predictions.length === 0) {
-      console.log(`[ScorePredictions] Match ${matchId} (${match.homeTeamName} vs ${match.awayTeamName}) — no unscored predictions, skipping`);
+    if (claimed.count === 0) {
+      console.log(`[ScorePredictions] Match ${matchId} (${match.homeTeamName} vs ${match.awayTeamName}) — already scored or no predictions`);
       return;
     }
 
+    // Fetch the predictions we just claimed.
+    const predictions = await this.prisma.prediction.findMany({
+      where: { matchId, scoredAt: now },
+    });
+
     console.log(`[ScorePredictions] Scoring ${predictions.length} prediction(s) for match ${matchId} (${match.homeTeamName} ${match.scoreHome}-${match.scoreAway} ${match.awayTeamName})`);
 
-    const now = new Date();
     const pointsEarnedMap = new Map<string, number>();
 
     for (const prediction of predictions) {
@@ -54,9 +71,10 @@ export class ScorePredictionsHandler {
         predictedAway: prediction.predictedAway,
       });
 
+      // scoredAt already set by the atomic claim above — only update points now.
       await this.prisma.prediction.update({
         where: { id: prediction.id },
-        data: { points, scoredAt: now },
+        data: { points },
       });
 
       const isExact = points === 10;
