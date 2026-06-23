@@ -5,6 +5,7 @@ import '../providers/shell_scaffold_key_provider.dart';
 import '../providers/theme_provider.dart';
 import 'logout_helper.dart';
 import 'diagnostic_screen.dart';
+import '../../features/auth/viewmodels/auth_viewmodel.dart';
 
 /// Returns a hamburger [IconButton] to open the side drawer on mobile
 /// (web and native) or null on wide desktop web.
@@ -23,6 +24,9 @@ Widget? buildLeadingWidget(BuildContext context, WidgetRef ref) {
 /// Add to every authenticated screen's [AppBar.actions].
 List<Widget> buildAppBarActions(BuildContext context, WidgetRef ref) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  final isAdmin = ref.watch(authViewModelProvider)
+      .whenData((s) => s.stage == AuthStage.admin)
+      .valueOrNull ?? false;
 
   return [
     IconButton(
@@ -38,12 +42,13 @@ List<Widget> buildAppBarActions(BuildContext context, WidgetRef ref) {
       tooltip: 'Sair',
       onPressed: () => confirmLogout(context, ref),
     ),
-    IconButton(
-      icon: const Icon(Icons.bug_report_outlined),
-      tooltip: 'Diagnóstico',
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const DiagnosticScreen()),
+    if (isAdmin)
+      IconButton(
+        icon: const Icon(Icons.bug_report_outlined),
+        tooltip: 'Diagnóstico',
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const DiagnosticScreen()),
+        ),
       ),
-    ),
   ];
 }
