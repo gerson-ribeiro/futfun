@@ -29,6 +29,53 @@ class _AdminCompetitionsScreenState
     super.dispose();
   }
 
+  Future<void> _confirmResetRanking(String code, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reiniciar ranking'),
+        content: Text(
+          'Isso vai zerar todos os pontos e histórico de "$name".\n\n'
+          'Os palpites e placares já registrados não são apagados — '
+          'só o ranking acumulado é reiniciado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Reiniciar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(adminCompetitionsViewModelProvider.notifier)
+          .resetRanking(code);
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Ranking de "$name" reiniciado')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Erro ao reiniciar: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _triggerSync() async {
     setState(() => _syncing = true);
     try {
@@ -178,8 +225,8 @@ class _AdminCompetitionsScreenState
                   itemCount: competitions.length,
                   itemBuilder: (context, index) {
                     final comp = competitions[index];
-                    return SwitchListTile(
-                      secondary: Icon(
+                    return ListTile(
+                      leading: Icon(
                         comp.enabled
                             ? Icons.check_circle
                             : Icons.cancel_outlined,
@@ -190,14 +237,25 @@ class _AdminCompetitionsScreenState
                       title: Text(comp.name),
                       subtitle: Text(
                         comp.code,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                        ),
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
-                      value: comp.enabled,
-                      onChanged: (_) => ref
-                          .read(adminCompetitionsViewModelProvider.notifier)
-                          .toggleGlobal(comp.code),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.restart_alt),
+                            tooltip: 'Reiniciar ranking',
+                            color: AppColors.textSecondary,
+                            onPressed: () => _confirmResetRanking(comp.code, comp.name),
+                          ),
+                          Switch(
+                            value: comp.enabled,
+                            onChanged: (_) => ref
+                                .read(adminCompetitionsViewModelProvider.notifier)
+                                .toggleGlobal(comp.code),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 );

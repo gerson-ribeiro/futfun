@@ -27,9 +27,9 @@ export async function GET(req: NextRequest) {
 
     const oauthProvider = createOAuthProvider(provider as OAuthProviderName);
     const tokenService = new JwtTokenService();
-    const { prisma } = getContainer();
+    const { prisma, notificationService } = getContainer();
 
-    const handler = new OAuthCallbackHandler(oauthProvider, tokenService, prisma);
+    const handler = new OAuthCallbackHandler(oauthProvider, tokenService, prisma, notificationService);
     const result = await handler.handle({ code, provider, state });
 
     // Web: redireciona para rota HTTP que o Flutter web consegue receber.

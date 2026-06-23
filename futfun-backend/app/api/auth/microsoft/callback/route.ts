@@ -24,9 +24,9 @@ export async function GET(req: NextRequest) {
 
     const oauthProvider = createOAuthProvider('microsoft');
     const tokenService = new JwtTokenService();
-    const { prisma } = getContainer();
+    const { prisma, notificationService } = getContainer();
 
-    const handler = new OAuthCallbackHandler(oauthProvider, tokenService, prisma);
+    const handler = new OAuthCallbackHandler(oauthProvider, tokenService, prisma, notificationService);
     const result = await handler.handle({ code, provider: 'microsoft', state });
 
     if (isWeb && webAppUrl) {

@@ -19,6 +19,10 @@ class AdminCompetitionsViewModel
     ref.invalidateSelf();
   }
 
+  Future<void> resetRanking(String code) async {
+    await _repository.resetRanking(code);
+  }
+
   Future<void> toggleGlobal(String code) async {
     final current = state.valueOrNull;
     if (current == null) return;

@@ -3,6 +3,7 @@
 import { PrismaClient } from '@prisma/client';
 import { IOAuthProvider } from '@application/ports/IOAuthProvider';
 import { ITokenService, TokenPayload } from '@application/ports/ITokenService';
+import { INotificationService } from '@application/ports/INotificationService';
 
 export interface CallbackInput {
   code: string;
@@ -25,7 +26,8 @@ export class OAuthCallbackHandler {
   constructor(
     private readonly oauthProvider: IOAuthProvider,
     private readonly tokenService: ITokenService,
-    private readonly prisma: PrismaClient
+    private readonly prisma: PrismaClient,
+    private readonly notificationService: INotificationService
   ) {}
 
   async handle(input: CallbackInput): Promise<CallbackResult> {
@@ -71,6 +73,12 @@ export class OAuthCallbackHandler {
           role,
         },
       });
+
+      if (role === 'PENDING') {
+        this.notificationService.notifyAdminsOfPendingUser(user).catch((err) =>
+          console.error('[OAuthCallback] Failed to notify admins:', err)
+        );
+      }
     } else {
       user = await this.prisma.user.update({
         where: { id: user.id },

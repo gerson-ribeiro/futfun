@@ -35,5 +35,5 @@ jobs:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           channelId: live
-          projectId: YOUR_FIREBASE_PROJECT_ID
+          projectId: futfun-385ea
           entryPoint: futfun-frontend

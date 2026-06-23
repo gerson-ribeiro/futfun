@@ -49,4 +49,8 @@ class CompetitionRepository {
     return CompetitionModel.fromJson(
         response.data['competition'] as Map<String, dynamic>);
   }
+
+  Future<void> resetRanking(String code) async {
+    await _dio.post('/api/admin/competitions/$code/reset-ranking');
+  }
 }

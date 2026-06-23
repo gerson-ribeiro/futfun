@@ -99,6 +99,29 @@ export class NotificationService implements INotificationService {
     }
   }
 
+  async notifyAdminsOfPendingUser(user: { id: string; displayName: string; email: string }): Promise<void> {
+    if (!this.fcm.isAvailable()) return;
+    try {
+      const rows = await this.prisma.deviceToken.findMany({
+        where: { user: { role: 'ADMIN' } },
+        select: { token: true },
+      });
+      if (rows.length === 0) return;
+
+      const tokens = rows.map((r) => r.token);
+      const { invalidTokens } = await this.fcm.sendMulticast(
+        tokens,
+        'Novo usuário aguardando aprovação',
+        `${user.displayName} (${user.email}) quer entrar no bolão`,
+        { type: 'pending_user', userId: user.id },
+      );
+      await this.cleanInvalidTokens(invalidTokens);
+      console.log(`[NotificationService] Admin notification sent for pending user ${user.email}`);
+    } catch (err) {
+      console.error('[NotificationService] notifyAdminsOfPendingUser failed:', err);
+    }
+  }
+
   private async cleanInvalidTokens(tokens: string[]): Promise<void> {
     if (tokens.length === 0) return;
     await this.prisma.deviceToken.deleteMany({ where: { token: { in: tokens } } });

@@ -1,12 +1,12 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'firebase_web_config.dart';
 import 'notification_repository.dart';
 
-/// Handles background messages — must be a top-level function.
+/// Handles background messages on native — must be a top-level function.
 @pragma('vm:entry-point')
 Future<void> _onBackgroundMessage(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -24,6 +24,48 @@ class PushNotificationService {
   static const _channelName = 'FutFun';
 
   Future<void> initialize() async {
+    if (kIsWeb) {
+      await _initWeb();
+    } else {
+      await _initNative();
+    }
+  }
+
+  Future<void> _initWeb() async {
+    try {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: kFirebaseWebApiKey,
+          authDomain: kFirebaseWebAuthDomain,
+          projectId: kFirebaseWebProjectId,
+          storageBucket: kFirebaseWebStorageBucket,
+          messagingSenderId: kFirebaseWebMessagingSenderId,
+          appId: kFirebaseWebAppId,
+        ),
+      );
+    } on FirebaseException catch (e) {
+      if (e.code != 'duplicate-app') rethrow;
+    }
+
+    final settings = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+
+    // Background notifications are handled by firebase-messaging-sw.js.
+    // Foreground messages: Firebase shows them automatically via the SW when
+    // the page is open but the notification is triggered from a background tab.
+    FirebaseMessaging.instance.onTokenRefresh.listen((t) => _currentToken = t);
+
+    _currentToken = await FirebaseMessaging.instance.getToken(
+      vapidKey: kFirebaseWebVapidKey,
+    );
+  }
+
+  Future<void> _initNative() async {
     await Firebase.initializeApp();
 
     FirebaseMessaging.onBackgroundMessage(_onBackgroundMessage);
@@ -38,22 +80,19 @@ class PushNotificationService {
 
     if (settings.authorizationStatus == AuthorizationStatus.denied) return;
 
-    // Show notifications when app is in foreground
     FirebaseMessaging.onMessage.listen(_showForegroundNotification);
 
     _currentToken = await FirebaseMessaging.instance.getToken();
 
-    // Keep token fresh — FCM can rotate it
-    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-      _currentToken = newToken;
-    });
+    FirebaseMessaging.instance.onTokenRefresh.listen((t) => _currentToken = t);
   }
 
   Future<void> registerToken(Dio dio) async {
-    final token = _currentToken ?? await FirebaseMessaging.instance.getToken();
+    final token =
+        _currentToken ?? await FirebaseMessaging.instance.getToken();
     if (token == null) return;
     _currentToken = token;
-    final platform = Platform.isAndroid ? 'android' : 'web';
+    const platform = kIsWeb ? 'web' : 'android';
     await NotificationRepository(dio).registerToken(token, platform);
   }
 

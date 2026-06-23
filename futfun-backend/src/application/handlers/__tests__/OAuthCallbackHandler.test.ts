@@ -3,6 +3,7 @@
 import { OAuthCallbackHandler } from '../OAuthCallbackHandler';
 import { IOAuthProvider } from '@application/ports/IOAuthProvider';
 import { ITokenService, TokenPayload } from '@application/ports/ITokenService';
+import { INotificationService } from '@application/ports/INotificationService';
 
 const mockProvider: IOAuthProvider = {
   getAuthorizationUrl: jest.fn(),
@@ -22,6 +23,12 @@ const mockTokenService: ITokenService = {
   generateRefreshToken: jest.fn().mockReturnValue('refresh-jwt'),
   verifyAccessToken: jest.fn(),
   verifyRefreshToken: jest.fn(),
+};
+
+const mockNotificationService: INotificationService = {
+  notifyRankingChanged: jest.fn().mockResolvedValue(undefined),
+  sendPredictionsReminder: jest.fn().mockResolvedValue(undefined),
+  notifyAdminsOfPendingUser: jest.fn().mockResolvedValue(undefined),
 };
 
 function makePrisma(overrides: Partial<ReturnType<typeof makeDefaultPrisma>> = {}) {
@@ -66,7 +73,8 @@ describe('OAuthCallbackHandler', () => {
     const handler = new OAuthCallbackHandler(
       mockProvider,
       mockTokenService,
-      prisma as any
+      prisma as any,
+      mockNotificationService
     );
 
     const result = await handler.handle({ code: 'auth-code', provider: 'google', state: '' });
@@ -104,7 +112,8 @@ describe('OAuthCallbackHandler', () => {
     const handler = new OAuthCallbackHandler(
       adminProvider,
       mockTokenService,
-      prisma as any
+      prisma as any,
+      mockNotificationService
     );
 
     const result = await handler.handle({ code: 'auth-code', provider: 'google', state: '' });
@@ -144,7 +153,8 @@ describe('OAuthCallbackHandler', () => {
     const handler = new OAuthCallbackHandler(
       mockProvider,
       mockTokenService,
-      prisma as any
+      prisma as any,
+      mockNotificationService
     );
 
     const result = await handler.handle({
@@ -181,7 +191,8 @@ describe('OAuthCallbackHandler', () => {
     const handler = new OAuthCallbackHandler(
       mockProvider,
       mockTokenService,
-      prisma as any
+      prisma as any,
+      mockNotificationService
     );
 
     const result = await handler.handle({ code: 'auth-code', provider: 'google', state: '' });
