@@ -109,10 +109,27 @@ class _MatchesBody extends ConsumerWidget {
       ),
       data: (matchesState) {
         if (matchesState.matches.isEmpty) {
-          return const Center(
-            child: Text(
-              'Nenhum jogo disponível',
-              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.sports_soccer, size: 64, color: AppColors.textSecondary),
+                const SizedBox(height: 16),
+                Text(
+                  matchesState.hasReachedEnd
+                      ? 'Todos os jogos já foram palpitados!'
+                      : 'Nenhum jogo disponível',
+                  style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                ),
+                if (matchesState.hasReachedEnd) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Fique de olho — novos jogos aparecem aqui.',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
             ),
           );
         }

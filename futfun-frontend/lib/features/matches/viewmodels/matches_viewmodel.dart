@@ -50,7 +50,13 @@ class MatchesViewModel extends FamilyAsyncNotifier<MatchesState, String> {
         authState.stage == AuthStage.pending) {
       return const MatchesState(matches: []);
     }
-    return _fetchMatches(competitionCode, daysAhead: 7);
+    // Auto-expand window if all near-term matches are already predicted.
+    for (final days in [7, 14, 21]) {
+      final result = await _fetchMatches(competitionCode, daysAhead: days);
+      if (result.matches.isNotEmpty) return result;
+    }
+    // All windows exhausted — nothing left to predict.
+    return const MatchesState(matches: [], hasReachedEnd: true, currentDaysAhead: 21);
   }
 
   Future<MatchesState> _fetchMatches(
