@@ -1,6 +1,7 @@
 // lib/features/auth/viewmodels/auth_viewmodel.dart
 
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/auth_repository.dart';
@@ -36,18 +37,17 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
     _repository = AuthRepository(DioClient().dio);
     final token = await _storage.read(key: 'jwt_token');
     if (token != null) {
-      final roleStr = await _storage.read(key: 'user_role') ?? 'member';
-      final role = parseUserRole(roleStr);
-      // Always re-check with the server when stored role is PENDING so an
-      // approved user doesn't stay stuck on the waiting screen after restarting.
-      if (role == UserRole.pending) return _fetchCurrentRole();
-      return AuthState(stage: _stageFromRole(role));
+      // Always validate + refresh on startup so the session is guaranteed fresh.
+      // Falls back to cached role on network errors (offline mode).
+      return _fetchCurrentRole();
     }
     return const AuthState(stage: AuthStage.unauthenticated);
   }
 
   /// Exchanges the stored refresh token for a fresh access token and returns
   /// an AuthState reflecting the role currently recorded in the database.
+  /// On network errors, falls back to the cached role (offline mode).
+  /// On auth errors (token expired/invalid), clears storage and returns unauthenticated.
   Future<AuthState> _fetchCurrentRole() async {
     try {
       final storedRefresh = await _storage.read(key: 'refresh_token');
@@ -58,8 +58,21 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
       await _storage.write(key: 'jwt_token', value: newToken);
       await _storage.write(key: 'user_role', value: role.name);
       return AuthState(stage: _stageFromRole(role));
-    } catch (_) {
-      return const AuthState(stage: AuthStage.pending);
+    } catch (e) {
+      // Network/connectivity error → use cached role so user stays logged in offline
+      final isNetworkError = e is DioException &&
+          (e.type == DioExceptionType.connectionError ||
+              e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.receiveTimeout);
+      if (isNetworkError) {
+        final roleStr = await _storage.read(key: 'user_role') ?? 'member';
+        return AuthState(stage: _stageFromRole(parseUserRole(roleStr)));
+      }
+      // Auth error (refresh token expired/invalid) → force login
+      await _storage.delete(key: 'jwt_token');
+      await _storage.delete(key: 'refresh_token');
+      await _storage.delete(key: 'user_role');
+      return const AuthState(stage: AuthStage.unauthenticated);
     }
   }
 

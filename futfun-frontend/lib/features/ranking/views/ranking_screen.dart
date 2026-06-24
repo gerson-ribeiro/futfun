@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_bar_actions.dart';
 import '../../../features/auth/viewmodels/auth_viewmodel.dart';
@@ -112,6 +113,9 @@ class RankingScreen extends ConsumerWidget {
                       (entry) => _RankingRow(
                         entry: entry,
                         isCurrentUser: entry.userId == currentUserId,
+                        onTap: () => context.push(
+                          '/ranking/${entry.userId}?name=${Uri.encodeComponent(entry.displayName)}',
+                        ),
                       ),
                     ),
                   ],
@@ -156,11 +160,13 @@ class _RankingRow extends StatelessWidget {
   final RankingEntry entry;
   final bool isCurrentUser;
   final bool compact;
+  final VoidCallback? onTap;
 
   const _RankingRow({
     required this.entry,
     this.isCurrentUser = false,
     this.compact = false,
+    this.onTap,
   });
 
   static String _medal(int pos) {
@@ -206,6 +212,7 @@ class _RankingRow extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: isTop3 || isCurrentUser
             ? LinearGradient(
@@ -229,7 +236,11 @@ class _RankingRow extends StatelessWidget {
                   )
                 : Border.all(color: Colors.grey.shade200)),
       ),
-      child: Padding(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
@@ -300,6 +311,8 @@ class _RankingRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
         ),
       ),
     );

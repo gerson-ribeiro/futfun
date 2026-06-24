@@ -19,6 +19,7 @@ import '../../features/competitions/views/competition_settings_screen.dart';
 import '../../features/competitions/views/admin_competitions_screen.dart';
 import '../../features/predictions/views/predictions_screen.dart';
 import '../../features/matches/views/match_predictions_screen.dart';
+import '../../features/ranking/views/user_predictions_screen.dart';
 import '../constants/app_colors.dart';
 import '../providers/active_competition_provider.dart';
 import '../../features/competitions/data/models/competition_model.dart';
@@ -266,6 +267,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
+      GoRoute(
+        path: '/ranking/:userId',
+        builder: (context, state) => UserPredictionsScreen(
+          userId: state.pathParameters['userId']!,
+          displayName: state.uri.queryParameters['name'] ?? '',
+        ),
+      ),
       GoRoute(
         path: '/matches/:matchExternalId/predictions',
         builder: (context, state) {
