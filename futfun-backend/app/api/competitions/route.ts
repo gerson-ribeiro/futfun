@@ -8,7 +8,7 @@ export const GET = withAuth(async (_req: NextRequest, user: TokenPayload) => {
   try {
     const { prisma } = getContainer();
 
-    const [competitions, preferences, statsGroups] = await Promise.all([
+    const [competitions, preferences, matchesWithScores] = await Promise.all([
       prisma.competition.findMany({
         where: { enabled: true },
         orderBy: { createdAt: 'asc' },
@@ -17,17 +17,22 @@ export const GET = withAuth(async (_req: NextRequest, user: TokenPayload) => {
         where: { userId: user.userId },
         select: { competitionCode: true, hidden: true },
       }),
-      prisma.userCompetitionStats.groupBy({
-        by: ['competitionCode'],
-        where: { totalPoints: { gt: 0 } },
-        _count: { userId: true },
+      // Replaces the dropped user_competition_stats table: find competitions
+      // that have at least one scored prediction (ranking data available).
+      prisma.match.findMany({
+        where: {
+          status: 'FINISHED',
+          predictions: { some: { points: { not: null } } },
+        },
+        select: { competitionCode: true },
+        distinct: ['competitionCode'],
       }),
     ]);
 
     const hiddenSet = new Set(
       preferences.filter((p) => p.hidden).map((p) => p.competitionCode),
     );
-    const codesWithData = new Set(statsGroups.map((s) => s.competitionCode));
+    const codesWithData = new Set(matchesWithScores.map((m) => m.competitionCode));
 
     const result = competitions.map((c) => ({
       ...c,
