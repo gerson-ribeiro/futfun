@@ -8,8 +8,8 @@ export class JwtTokenService implements ITokenService {
 
   constructor() {
     this.secret = process.env.JWT_SECRET!;
-    this.accessExpires = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
-    this.refreshExpires = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+    this.accessExpires = process.env.JWT_ACCESS_EXPIRES_IN || '1h';
+    this.refreshExpires = process.env.JWT_REFRESH_EXPIRES_IN || '60d';
   }
 
   private createToken(payload: TokenPayload, expiresIn: string): string {
