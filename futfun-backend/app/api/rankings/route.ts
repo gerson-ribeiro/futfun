@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getContainer } from '@infrastructure/container/container';
 import { withAuth } from '@presentation/middleware/authMiddleware';
 import { handleError } from '@presentation/middleware/errorHandler';
-import { TokenPayload } from '@application/ports/ITokenService';
 
-export const GET = withAuth(async (req: NextRequest, _user: TokenPayload) => {
+type RankingRow = {
+  userId: string;
+  displayName: string;
+  matchesPredicted: number;
+  totalPoints: number;
+  exactScores: number;
+  correctResults: number;
+};
+
+export const GET = withAuth(async (req: NextRequest) => {
   try {
     const competitionCode = req.nextUrl.searchParams.get('competitionCode');
     if (!competitionCode) {
@@ -13,42 +21,28 @@ export const GET = withAuth(async (req: NextRequest, _user: TokenPayload) => {
 
     const { prisma } = getContainer();
 
-    // Busca todos os usuários elegíveis (MEMBER e ADMIN) com suas stats para esta liga
-    const users = await prisma.user.findMany({
-      where: { role: { in: ['MEMBER', 'ADMIN'] } },
-      select: {
-        id: true,
-        displayName: true,
-        competitionStats: {
-          where: { competitionCode },
-        },
-      },
-    });
+    const rows = await prisma.$queryRaw<RankingRow[]>`
+      SELECT
+        u.id                                      AS "userId",
+        u."displayName",
+        COALESCE(r."matchesPredicted", 0)::int    AS "matchesPredicted",
+        COALESCE(r."totalPoints",      0)::int    AS "totalPoints",
+        COALESCE(r."exactScores",      0)::int    AS "exactScores",
+        COALESCE(r."correctResults",   0)::int    AS "correctResults"
+      FROM users u
+      LEFT JOIN "user_competition_ranking" r
+        ON r."userId" = u.id AND r."competitionCode" = ${competitionCode}
+      WHERE u.role IN ('MEMBER', 'ADMIN')
+      ORDER BY
+        COALESCE(r."totalPoints",      0) DESC,
+        COALESCE(r."exactScores",      0) DESC,
+        COALESCE(r."correctResults",   0) DESC,
+        COALESCE(r."matchesPredicted", 0) ASC
+    `;
 
-    // Constrói entradas com 0s para quem não tem stats
-    const entries = users.map((user) => {
-      const stats = user.competitionStats[0];
-      return {
-        userId: user.id,
-        displayName: user.displayName,
-        totalPoints: stats?.totalPoints ?? 0,
-        exactScores: stats?.exactScores ?? 0,
-        correctResults: stats?.correctResults ?? 0,
-        matchesPredicted: stats?.matchesPredicted ?? 0,
-      };
-    });
-
-    // Ordena pelas regras de desempate
-    entries.sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      if (b.exactScores !== a.exactScores) return b.exactScores - a.exactScores;
-      if (b.correctResults !== a.correctResults) return b.correctResults - a.correctResults;
-      return a.matchesPredicted - b.matchesPredicted;
-    });
-
-    const rankings = entries.map((entry, index) => ({
+    const rankings = rows.map((row, index) => ({
       position: index + 1,
-      ...entry,
+      ...row,
     }));
 
     return NextResponse.json({ rankings });

@@ -17,11 +17,8 @@ model User {
   role                   UserRole                    @default(PENDING)
   sentInvites            Invite[]
   predictions            Prediction[]
-  rankingHistories       RankingHistory[]
-  ranking                Ranking?
   competitionPreferences UserCompetitionPreference[]
   refreshToken           RefreshToken?
-  competitionStats       UserCompetitionStats[]
   deviceTokens           DeviceToken[]
 
   @@unique([provider, providerId])
@@ -104,41 +101,6 @@ model Prediction {
   @@map("predictions")
 }
 
-model Ranking {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String   @unique @db.Uuid
-  totalPoints      Int      @default(0)
-  exactScores      Int      @default(0)
-  correctResults   Int      @default(0)
-  matchesPredicted Int      @default(0)
-  lastCalculatedAt DateTime @default(now())
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([totalPoints])
-  @@map("rankings")
-}
-
-model RankingHistory {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String   @db.Uuid
-  snapshotKey     String
-  matchday        Int?
-  roundStage      String
-  pointsEarned    Int      @default(0)
-  totalPoints     Int      @default(0)
-  exactScores     Int      @default(0)
-  correctResults  Int      @default(0)
-  position        Int
-  competitionCode String?
-  snapshotAt      DateTime @default(now())
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, snapshotKey])
-  @@index([userId, snapshotKey])
-  @@index([userId, competitionCode])
-  @@map("ranking_history")
-}
-
 model Competition {
   id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code             String                 @unique
@@ -147,27 +109,9 @@ model Competition {
   color            String?
   providerConfig   Json?
   createdAt        DateTime               @default(now())
-  matches          Match[]
-  competitionStats UserCompetitionStats[]
+  matches Match[]
 
   @@map("competitions")
-}
-
-model UserCompetitionStats {
-  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String      @db.Uuid
-  competitionCode  String
-  totalPoints      Int         @default(0)
-  exactScores      Int         @default(0)
-  correctResults   Int         @default(0)
-  matchesPredicted Int         @default(0)
-  lastCalculatedAt DateTime    @default(now())
-  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  competition      Competition @relation(fields: [competitionCode], references: [code], onDelete: Cascade)
-
-  @@unique([userId, competitionCode])
-  @@index([competitionCode, totalPoints])
-  @@map("user_competition_stats")
 }
 
 model UserCompetitionPreference {

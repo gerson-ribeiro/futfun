@@ -4,6 +4,15 @@ import { withAuth } from '@presentation/middleware/authMiddleware';
 import { handleError } from '@presentation/middleware/errorHandler';
 import { TokenPayload } from '@application/ports/ITokenService';
 
+type RankingRow = {
+  userId: string;
+  displayName: string;
+  matchesPredicted: number;
+  totalPoints: number;
+  exactScores: number;
+  correctResults: number;
+};
+
 export const GET = withAuth(async (req: NextRequest, user: TokenPayload) => {
   try {
     const competitionCode = req.nextUrl.searchParams.get('competitionCode');
@@ -13,48 +22,35 @@ export const GET = withAuth(async (req: NextRequest, user: TokenPayload) => {
 
     const { prisma } = getContainer();
 
-    // Mesma lógica do /rankings para determinar a posição real do usuário
-    const users = await prisma.user.findMany({
-      where: { role: { in: ['MEMBER', 'ADMIN'] } },
-      select: {
-        id: true,
-        displayName: true,
-        competitionStats: {
-          where: { competitionCode },
-        },
-      },
-    });
+    // Reuse the same query as /rankings — sort to determine position.
+    const rows = await prisma.$queryRaw<RankingRow[]>`
+      SELECT
+        u.id                                      AS "userId",
+        u."displayName",
+        COALESCE(r."matchesPredicted", 0)::int    AS "matchesPredicted",
+        COALESCE(r."totalPoints",      0)::int    AS "totalPoints",
+        COALESCE(r."exactScores",      0)::int    AS "exactScores",
+        COALESCE(r."correctResults",   0)::int    AS "correctResults"
+      FROM users u
+      LEFT JOIN "user_competition_ranking" r
+        ON r."userId" = u.id AND r."competitionCode" = ${competitionCode}
+      WHERE u.role IN ('MEMBER', 'ADMIN')
+      ORDER BY
+        COALESCE(r."totalPoints",      0) DESC,
+        COALESCE(r."exactScores",      0) DESC,
+        COALESCE(r."correctResults",   0) DESC,
+        COALESCE(r."matchesPredicted", 0) ASC
+    `;
 
-    const entries = users.map((u) => {
-      const stats = u.competitionStats[0];
-      return {
-        userId: u.id,
-        displayName: u.displayName,
-        totalPoints: stats?.totalPoints ?? 0,
-        exactScores: stats?.exactScores ?? 0,
-        correctResults: stats?.correctResults ?? 0,
-        matchesPredicted: stats?.matchesPredicted ?? 0,
-      };
-    });
-
-    entries.sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      if (b.exactScores !== a.exactScores) return b.exactScores - a.exactScores;
-      if (b.correctResults !== a.correctResults) return b.correctResults - a.correctResults;
-      return a.matchesPredicted - b.matchesPredicted;
-    });
-
-    const positionIndex = entries.findIndex((e) => e.userId === user.userId);
-
+    const positionIndex = rows.findIndex((r) => r.userId === user.userId);
     if (positionIndex === -1) {
       return NextResponse.json({ ranking: null });
     }
 
-    const entry = entries[positionIndex];
     return NextResponse.json({
       ranking: {
         position: positionIndex + 1,
-        ...entry,
+        ...rows[positionIndex],
       },
     });
   } catch (error) {
