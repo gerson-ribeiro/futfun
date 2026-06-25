@@ -18,19 +18,21 @@ class RankingViewModel extends AsyncNotifier<RankingState> {
   Future<RankingState> build() async {
     _repository = RankingRepository();
 
-    // ref.watch MUST be called synchronously before any await — Riverpod
-    // throws StateError if called after an await in AsyncNotifier.build().
-    final asyncActive = ref.watch(activeCompetitionNotifierProvider);
+    // All ref.watch calls must be synchronous (before any await).
+    // .future awaits the resolved value instead of reading a potentially-null
+    // snapshot — fixes the web reload race condition where competitions finish
+    // loading after auth but before rankingViewModelProvider reads them.
+    final authFuture = ref.watch(authViewModelProvider.future);
+    final activeFuture = ref.watch(activeCompetitionNotifierProvider.future);
 
-    // Wait for auth before making API calls — prevents 401 on web reload
-    // when the JWT hasn't been restored from flutter_secure_storage yet.
-    final authState = await ref.watch(authViewModelProvider.future);
+    final authState = await authFuture;
     if (authState.stage == AuthStage.unauthenticated ||
         authState.stage == AuthStage.pending) {
       return const RankingState(leaderboard: []);
     }
 
-    final code = asyncActive.valueOrNull?.selected?.code;
+    final active = await activeFuture;
+    final code = active.selected?.code;
 
     if (code == null) return const RankingState(leaderboard: []);
 

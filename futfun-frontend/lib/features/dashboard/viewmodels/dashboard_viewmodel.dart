@@ -22,17 +22,18 @@ class DashboardViewModel extends AsyncNotifier<DashboardState> {
     _dashboardRepo = DashboardRepository();
     _rankingRepo = RankingRepository();
 
-    // ref.watch MUST be called synchronously before any await.
-    final asyncActive = ref.watch(activeCompetitionNotifierProvider);
+    // All ref.watch calls must be synchronous (before any await).
+    final authFuture = ref.watch(authViewModelProvider.future);
+    final activeFuture = ref.watch(activeCompetitionNotifierProvider.future);
 
-    // Wait for auth before making API calls.
-    final authState = await ref.watch(authViewModelProvider.future);
+    final authState = await authFuture;
     if (authState.stage == AuthStage.unauthenticated ||
         authState.stage == AuthStage.pending) {
       return const DashboardState(history: []);
     }
 
-    final code = asyncActive.valueOrNull?.selected?.code;
+    final active = await activeFuture;
+    final code = active.selected?.code;
 
     if (code == null) return const DashboardState(history: []);
 
