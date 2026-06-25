@@ -33,11 +33,14 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          output=$(npx firebase-tools deploy --only hosting --project futfun-385ea 2>&1)
-          echo "$output"
-          # Firebase returns 400 when the build content is identical to the active version.
-          # Treat this as success — the correct code is already deployed.
-          if echo "$output" | grep -q "is the current active version"; then
-            echo "Already up to date — no deploy needed."
-            exit 0
+          set +e
+          npx firebase-tools deploy --only hosting --project futfun-385ea 2>&1 | tee /tmp/fb_out.txt
+          exit_code=${PIPESTATUS[0]}
+          set -e
+          # Firebase returns 400 when the compiled output is identical to the active
+          # version — treat as success since the correct code is already deployed.
+          if [ "$exit_code" -ne 0 ] && ! grep -q "is the current active version" /tmp/fb_out.txt; then
+            echo "Firebase deploy failed with exit code $exit_code"
+            exit "$exit_code"
           fi
+          echo "Deploy complete (or already up to date)."
