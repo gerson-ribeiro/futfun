@@ -41,4 +41,30 @@ export async function applyStartupMigrations(prisma: PrismaClient): Promise<void
   } catch (err) {
     console.error('[startup] Migration failed (non-fatal, notifications may be unavailable):', err);
   }
+
+  try {
+    await prisma.$executeRaw`DROP TABLE IF EXISTS "user_competition_stats" CASCADE`;
+    await prisma.$executeRaw`DROP TABLE IF EXISTS "ranking_history" CASCADE`;
+    await prisma.$executeRaw`DROP TABLE IF EXISTS "rankings" CASCADE`;
+
+    await prisma.$executeRaw`
+      CREATE OR REPLACE VIEW "user_competition_ranking" AS
+      SELECT
+        p."userId",
+        m."competitionCode",
+        COUNT(*)::int                                                   AS "matchesPredicted",
+        COALESCE(SUM(p.points), 0)::int                                 AS "totalPoints",
+        COUNT(*) FILTER (WHERE p.points = 10)::int                      AS "exactScores",
+        COUNT(*) FILTER (WHERE p.points = 5 OR p.points = 7)::int       AS "correctResults"
+      FROM predictions p
+      JOIN matches m ON m.id = p."matchId"
+      WHERE m.status = 'FINISHED'
+        AND p.points IS NOT NULL
+      GROUP BY p."userId", m."competitionCode"
+    `;
+
+    console.log('[startup] ranking view migration OK');
+  } catch (err) {
+    console.error('[startup] Ranking view migration failed:', err);
+  }
 }
