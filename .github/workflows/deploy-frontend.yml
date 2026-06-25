@@ -29,7 +29,15 @@ jobs:
         working-directory: futfun-frontend
 
       - name: Deploy to Firebase Hosting
-        run: npx firebase-tools deploy --only hosting --project futfun-385ea
         working-directory: futfun-frontend
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          output=$(npx firebase-tools deploy --only hosting --project futfun-385ea 2>&1)
+          echo "$output"
+          # Firebase returns 400 when the build content is identical to the active version.
+          # Treat this as success — the correct code is already deployed.
+          if echo "$output" | grep -q "is the current active version"; then
+            echo "Already up to date — no deploy needed."
+            exit 0
+          fi
