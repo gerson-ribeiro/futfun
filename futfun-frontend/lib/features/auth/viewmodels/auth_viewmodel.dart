@@ -8,6 +8,7 @@ import '../data/auth_repository.dart';
 import '../data/models/auth_user.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/notifications/push_notification_service.dart';
+import '../../../core/storage/app_logger.dart';
 import '../../../core/storage/app_storage.dart';
 
 enum AuthStage { unauthenticated, pending, member, admin }
@@ -36,9 +37,8 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
   Future<AuthState> build() async {
     _repository = AuthRepository(DioClient().dio);
     final token = await _storage.read(key: 'jwt_token');
+    AppLogger.log('✓ [Auth] Iniciando — token=${token != null ? "encontrado" : "ausente"}');
     if (token != null) {
-      // Always validate + refresh on startup so the session is guaranteed fresh.
-      // Falls back to cached role on network errors (offline mode).
       return _fetchCurrentRole();
     }
     return const AuthState(stage: AuthStage.unauthenticated);
@@ -46,34 +46,54 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
 
   /// Exchanges the stored refresh token for a fresh access token and returns
   /// an AuthState reflecting the role currently recorded in the database.
-  /// On network errors, falls back to the cached role (offline mode).
-  /// On auth errors (token expired/invalid), clears storage and returns unauthenticated.
+  /// Only forces logout on explicit HTTP 401/403 — all other errors (5xx,
+  /// network timeouts, unknown) fall back to the cached role so the user
+  /// stays logged in when the server is temporarily unavailable.
   Future<AuthState> _fetchCurrentRole() async {
     try {
+      AppLogger.log('✓ [Auth] Tentando refresh...');
       final storedRefresh = await _storage.read(key: 'refresh_token');
-      if (storedRefresh == null) return const AuthState(stage: AuthStage.unauthenticated);
+      if (storedRefresh == null) {
+        AppLogger.log('✗ [Auth] Refresh token ausente → logout');
+        return const AuthState(stage: AuthStage.unauthenticated);
+      }
       final newToken = await _repository.refreshToken(storedRefresh);
       final roleStr = _roleFromJwt(newToken);
       final role = parseUserRole(roleStr);
       await _storage.write(key: 'jwt_token', value: newToken);
       await _storage.write(key: 'user_role', value: role.name);
+      AppLogger.log('✓ [Auth] Refresh OK → role=${role.name}');
       return AuthState(stage: _stageFromRole(role));
     } catch (e) {
-      // Network/connectivity error → use cached role so user stays logged in offline
-      final isNetworkError = e is DioException &&
-          (e.type == DioExceptionType.connectionError ||
-              e.type == DioExceptionType.connectionTimeout ||
-              e.type == DioExceptionType.receiveTimeout);
-      if (isNetworkError) {
-        final roleStr = await _storage.read(key: 'user_role') ?? 'member';
-        return AuthState(stage: _stageFromRole(parseUserRole(roleStr)));
+      // Only force logout when the server explicitly rejects the token (401/403).
+      // Any other error (5xx, timeout, connection failure) keeps the session
+      // alive using the cached role — the user should not be logged out because
+      // the server had a transient issue.
+      final isAuthRejection = e is DioException &&
+          e.type == DioExceptionType.badResponse &&
+          (e.response?.statusCode == 401 || e.response?.statusCode == 403);
+
+      if (isAuthRejection) {
+        AppLogger.log('✗ [Auth] Token rejeitado (${e.response?.statusCode}) → logout');
+        await _storage.delete(key: 'jwt_token');
+        await _storage.delete(key: 'refresh_token');
+        await _storage.delete(key: 'user_role');
+        return const AuthState(stage: AuthStage.unauthenticated);
       }
-      // Auth error (refresh token expired/invalid) → force login
-      await _storage.delete(key: 'jwt_token');
-      await _storage.delete(key: 'refresh_token');
-      await _storage.delete(key: 'user_role');
-      return const AuthState(stage: AuthStage.unauthenticated);
+
+      final desc = _describeError(e);
+      AppLogger.log('⚠ [Auth] Erro no refresh ($desc) → mantendo sessão com cache');
+      final roleStr = await _storage.read(key: 'user_role') ?? 'member';
+      return AuthState(stage: _stageFromRole(parseUserRole(roleStr)));
     }
+  }
+
+  String _describeError(Object e) {
+    if (e is DioException) {
+      if (e.response != null) return 'HTTP ${e.response!.statusCode}';
+      return e.type.name;
+    }
+    return e.runtimeType.toString();
   }
 
   String _roleFromJwt(String token) {
@@ -138,6 +158,7 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    AppLogger.log('✓ [Auth] Logout iniciado');
     if (!kIsWeb) {
       await PushNotificationService()
           .unregisterToken(DioClient().dio)
@@ -146,6 +167,7 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_role');
+    AppLogger.log('✓ [Auth] Logout concluído');
     state = const AsyncValue.data(AuthState(stage: AuthStage.unauthenticated));
   }
 

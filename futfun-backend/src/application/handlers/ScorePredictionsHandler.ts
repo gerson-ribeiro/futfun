@@ -1,10 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 import { PointsCalculationService } from '@application/services/PointsCalculationService';
+import { INotificationService } from '@application/ports/INotificationService';
 
 export class ScorePredictionsHandler {
   private readonly calculator = new PointsCalculationService();
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly notificationService?: INotificationService,
+  ) {}
 
   async handle(matchId: string): Promise<void> {
     const match = await this.prisma.match.findUnique({ where: { id: matchId } });
@@ -59,5 +63,12 @@ export class ScorePredictionsHandler {
     }
 
     console.log(`[ScorePredictions] Done — ${predictions.length} prediction(s) scored`);
+
+    if (this.notificationService && predictions.length > 0) {
+      const userIds = [...new Set(predictions.map((p) => p.userId))];
+      this.notificationService.notifyRankingChanged(userIds).catch((err) =>
+        console.error('[ScorePredictions] Notification failed:', err),
+      );
+    }
   }
 }

@@ -62,7 +62,7 @@ export class MatchSyncJob {
     private readonly secondaryProvider?: IFootballDataProvider,
     private readonly notificationService?: INotificationService,
   ) {
-    this.scorePredictionsHandler = new ScorePredictionsHandler(prisma);
+    this.scorePredictionsHandler = new ScorePredictionsHandler(prisma, notificationService);
   }
 
   start(): void {

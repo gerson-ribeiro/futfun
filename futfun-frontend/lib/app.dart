@@ -8,6 +8,7 @@ import 'core/notifications/push_notification_service.dart';
 import 'core/router/app_router.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/competition_theme_provider.dart';
+import 'core/storage/app_logger.dart';
 import 'features/auth/viewmodels/auth_viewmodel.dart';
 
 class FutFunApp extends ConsumerStatefulWidget {
@@ -19,6 +20,7 @@ class FutFunApp extends ConsumerStatefulWidget {
 
 class _FutFunAppState extends ConsumerState<FutFunApp> {
   late final AppLinks _appLinks;
+  ProviderSubscription<AsyncValue<AuthState>>? _authSub;
 
   @override
   void initState() {
@@ -28,14 +30,37 @@ class _FutFunAppState extends ConsumerState<FutFunApp> {
     );
     _initDeepLinks();
     _initPushNotifications();
+    // Register FCM token whenever auth state settles on authenticated.
+    // Using listenManual avoids the race condition where the auth state is
+    // still AsyncLoading when _initPushNotifications() first runs.
+    _authSub = ref.listenManual(authViewModelProvider, (prev, next) {
+      final prevStage = prev?.valueOrNull?.stage;
+      final nextStage = next.valueOrNull?.stage;
+      final isNowAuth =
+          nextStage == AuthStage.member || nextStage == AuthStage.admin;
+      final wasAuth =
+          prevStage == AuthStage.member || prevStage == AuthStage.admin;
+      if (isNowAuth && !wasAuth) {
+        AppLogger.log('✓ [Push] Usuário autenticado (${nextStage!.name}) → registrando token FCM');
+        PushNotificationService()
+            .registerToken(DioClient().dio)
+            .catchError((Object e) => AppLogger.log('✗ [Push] Falha ao registrar token: $e'));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.close();
+    super.dispose();
   }
 
   void _initPushNotifications() async {
-    await PushNotificationService().initialize();
-    // Register token if user is already authenticated (app restart after login)
-    final auth = ref.read(authViewModelProvider).valueOrNull;
-    if (auth?.stage == AuthStage.member || auth?.stage == AuthStage.admin) {
-      PushNotificationService().registerToken(DioClient().dio).catchError((_) {});
+    AppLogger.log('✓ [Push] Inicializando serviço de notificações...');
+    try {
+      await PushNotificationService().initialize();
+    } catch (e) {
+      AppLogger.log('✗ [Push] Falha na inicialização: $e');
     }
   }
 
