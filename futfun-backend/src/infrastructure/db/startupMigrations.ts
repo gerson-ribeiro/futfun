@@ -43,6 +43,12 @@ export async function applyStartupMigrations(prisma: PrismaClient): Promise<void
   }
 
   try {
+    await prisma.$executeRaw`DROP INDEX IF EXISTS "refresh_tokens_userId_key"`;
+  } catch (err) {
+    console.error('[startup] Failed to drop refresh_tokens_userId_key index:', err);
+  }
+
+  try {
     await prisma.$executeRaw`DROP TABLE IF EXISTS "user_competition_stats" CASCADE`;
     await prisma.$executeRaw`DROP TABLE IF EXISTS "ranking_history" CASCADE`;
     await prisma.$executeRaw`DROP TABLE IF EXISTS "rankings" CASCADE`;

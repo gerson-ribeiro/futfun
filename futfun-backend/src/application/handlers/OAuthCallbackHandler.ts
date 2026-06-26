@@ -94,11 +94,20 @@ export class OAuthCallbackHandler {
 
     const accessToken = this.tokenService.generateAccessToken(payload);
     const refreshToken = this.tokenService.generateRefreshToken(payload);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await this.prisma.refreshToken.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, token: refreshToken, expiresAt },
-      update: { token: refreshToken, expiresAt },
+    const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+    
+    // Cleanup expired tokens for this user
+    await this.prisma.refreshToken.deleteMany({
+      where: {
+        OR: [
+          { userId: user.id, expiresAt: { lt: new Date() } },
+          { token: refreshToken }
+        ]
+      }
+    });
+
+    await this.prisma.refreshToken.create({
+      data: { userId: user.id, token: refreshToken, expiresAt },
     });
 
     return {

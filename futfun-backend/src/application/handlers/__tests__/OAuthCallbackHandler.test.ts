@@ -58,6 +58,8 @@ function makeDefaultPrisma() {
     },
     refreshToken: {
       upsert: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockResolvedValue({}),
     },
   };
 }

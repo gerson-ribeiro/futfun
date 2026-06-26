@@ -149,7 +149,9 @@ class DioClient {
   Future<void> _doForceLogout() async {
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: 'persistent_login_token');
     await _storage.delete(key: 'user_role');
+    await _storage.delete(key: 'auth_user');
     await _onForceLogout?.call();
   }
 

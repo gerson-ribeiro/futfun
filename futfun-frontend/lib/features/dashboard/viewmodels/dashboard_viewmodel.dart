@@ -50,6 +50,7 @@ class DashboardViewModel extends AsyncNotifier<DashboardState> {
 
   Future<void> refresh() async {
     ref.invalidateSelf();
+    await future;
   }
 }
 

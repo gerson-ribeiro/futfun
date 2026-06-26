@@ -18,7 +18,7 @@ model User {
   sentInvites            Invite[]
   predictions            Prediction[]
   competitionPreferences UserCompetitionPreference[]
-  refreshToken           RefreshToken?
+  refreshTokens          RefreshToken[]
   deviceTokens           DeviceToken[]
 
   @@unique([provider, providerId])
@@ -27,7 +27,7 @@ model User {
 
 model RefreshToken {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String   @unique @db.Uuid
+  userId    String   @db.Uuid
   token     String
   expiresAt DateTime
   createdAt DateTime @default(now())

@@ -34,4 +34,13 @@ class AuthUser {
       role: parseUserRole(json['role'] as String? ?? 'PENDING'),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'displayName': displayName,
+      'role': role.name,
+    };
+  }
 }

@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
     const { prisma } = getContainer();
 
     const payload = tokenService.verifyRefreshToken(refreshToken);
-    const stored = await prisma.refreshToken.findUnique({
-      where: { userId: payload.userId },
+    const stored = await prisma.refreshToken.findFirst({
+      where: { token: refreshToken, userId: payload.userId },
     });
 
     if (!stored || stored.token !== refreshToken || stored.expiresAt < new Date()) {

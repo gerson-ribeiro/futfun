@@ -41,6 +41,40 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
     if (token != null) {
       return _fetchCurrentRole();
     }
+
+    final persistentToken = await _storage.read(key: 'persistent_login_token');
+    if (persistentToken != null) {
+      AppLogger.log('✓ [Auth] Persistent token encontrado, tentando login automático...');
+      try {
+        final newToken = await _repository.refreshToken(persistentToken);
+        final roleStr = _roleFromJwt(newToken);
+        final role = parseUserRole(roleStr);
+        await _storage.write(key: 'jwt_token', value: newToken);
+        await _storage.write(key: 'refresh_token', value: persistentToken);
+        await _storage.write(key: 'user_role', value: role.name);
+
+        AuthUser? user;
+        final userStr = await _storage.read(key: 'auth_user');
+        if (userStr != null) {
+          try {
+            user = AuthUser.fromJson(jsonDecode(userStr) as Map<String, dynamic>);
+          } catch (_) {}
+        }
+
+        AppLogger.log('✓ [Auth] Relogado automaticamente com sucesso!');
+        return AuthState(stage: _stageFromRole(role), user: user);
+      } catch (e) {
+        AppLogger.log('✗ [Auth] Falha no login automático: $e');
+        final isAuthRejection = e is DioException &&
+            e.type == DioExceptionType.badResponse &&
+            (e.response?.statusCode == 401 || e.response?.statusCode == 403);
+        if (isAuthRejection) {
+          await _storage.delete(key: 'persistent_login_token');
+          await _storage.delete(key: 'auth_user');
+        }
+      }
+    }
+
     return const AuthState(stage: AuthStage.unauthenticated);
   }
 
@@ -62,8 +96,17 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
       final role = parseUserRole(roleStr);
       await _storage.write(key: 'jwt_token', value: newToken);
       await _storage.write(key: 'user_role', value: role.name);
+
+      AuthUser? user;
+      final userStr = await _storage.read(key: 'auth_user');
+      if (userStr != null) {
+        try {
+          user = AuthUser.fromJson(jsonDecode(userStr) as Map<String, dynamic>);
+        } catch (_) {}
+      }
+
       AppLogger.log('✓ [Auth] Refresh OK → role=${role.name}');
-      return AuthState(stage: _stageFromRole(role));
+      return AuthState(stage: _stageFromRole(role), user: user);
     } catch (e) {
       // Only force logout when the server explicitly rejects the token (401/403).
       // Any other error (5xx, timeout, connection failure) keeps the session
@@ -77,14 +120,25 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
         AppLogger.log('✗ [Auth] Token rejeitado (${e.response?.statusCode}) → logout');
         await _storage.delete(key: 'jwt_token');
         await _storage.delete(key: 'refresh_token');
+        await _storage.delete(key: 'persistent_login_token');
         await _storage.delete(key: 'user_role');
+        await _storage.delete(key: 'auth_user');
         return const AuthState(stage: AuthStage.unauthenticated);
       }
 
       final desc = _describeError(e);
       AppLogger.log('⚠ [Auth] Erro no refresh ($desc) → mantendo sessão com cache');
       final roleStr = await _storage.read(key: 'user_role') ?? 'member';
-      return AuthState(stage: _stageFromRole(parseUserRole(roleStr)));
+
+      AuthUser? user;
+      final userStr = await _storage.read(key: 'auth_user');
+      if (userStr != null) {
+        try {
+          user = AuthUser.fromJson(jsonDecode(userStr) as Map<String, dynamic>);
+        } catch (_) {}
+      }
+
+      return AuthState(stage: _stageFromRole(parseUserRole(roleStr)), user: user);
     }
   }
 
@@ -125,7 +179,9 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
       final user = AuthUser.fromJson(result['user'] as Map<String, dynamic>);
       await _storage.write(key: 'jwt_token', value: result['accessToken'] as String);
       await _storage.write(key: 'refresh_token', value: result['refreshToken'] as String);
+      await _storage.write(key: 'persistent_login_token', value: result['refreshToken'] as String);
       await _storage.write(key: 'user_role', value: user.role.name);
+      await _storage.write(key: 'auth_user', value: jsonEncode(user.toJson()));
       return AuthState(
         stage: _stageFromRole(user.role),
         user: user,
@@ -144,7 +200,9 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
       final authUser = AuthUser.fromJson(user);
       await _storage.write(key: 'jwt_token', value: accessToken);
       await _storage.write(key: 'refresh_token', value: refreshToken);
+      await _storage.write(key: 'persistent_login_token', value: refreshToken);
       await _storage.write(key: 'user_role', value: authUser.role.name);
+      await _storage.write(key: 'auth_user', value: jsonEncode(authUser.toJson()));
       if (!kIsWeb) {
         PushNotificationService()
             .registerToken(DioClient().dio)
@@ -166,7 +224,9 @@ class AuthViewModel extends AsyncNotifier<AuthState> {
     }
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: 'persistent_login_token');
     await _storage.delete(key: 'user_role');
+    await _storage.delete(key: 'auth_user');
     AppLogger.log('✓ [Auth] Logout concluído');
     state = const AsyncValue.data(AuthState(stage: AuthStage.unauthenticated));
   }

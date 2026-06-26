@@ -49,6 +49,7 @@ class RankingViewModel extends AsyncNotifier<RankingState> {
 
   Future<void> refresh() async {
     ref.invalidateSelf();
+    await future;
   }
 }
 
